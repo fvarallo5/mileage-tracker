@@ -1,5 +1,6 @@
 node_modules/
 dist/
+build/
 backend/data/
 .DS_Store
 *.log
@@ -8,6 +9,7 @@ backend/data/
 
 # Flutter / mobile build artifacts
 mobile/build/
+mobile/android/build/
 mobile/.dart_tool/
 mobile/.flutter-plugins-dependencies
 mobile/ios/Pods/
