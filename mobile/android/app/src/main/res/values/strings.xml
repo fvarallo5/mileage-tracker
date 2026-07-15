@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_start_trip_short">Start trip</string>
+    <string name="shortcut_start_trip_long">Start GPS trip tracking</string>
+    <string name="shortcut_stop_trip_short">Stop trip</string>
+    <string name="shortcut_stop_trip_long">Stop trip and save mileage</string>
+</resources>
