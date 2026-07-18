@@ -16,7 +16,9 @@ class TaxExportService {
     required List<Trip> trips,
     required int year,
   }) async {
-    final yearTrips = trips.where((t) => t.date.startsWith('$year')).toList()
+    final yearTrips = trips
+        .where((t) => t.isBusiness && t.date.startsWith('$year'))
+        .toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 
     final dir = await getTemporaryDirectory();
@@ -36,7 +38,7 @@ class TaxExportService {
         subject: 'TrekTrack tax package $year',
         text:
             'TrekTrack mileage package for tax year $year.\n'
-            '• MileageLog — trip-by-trip business miles (TurboTax / records)\n'
+            '• MileageLog — business miles only (personal trips excluded)\n'
             '• ScheduleC — standard mileage deduction summary for Schedule C\n'
             'Generated $stamp. Confirm rates with your tax pro.',
       ),
@@ -52,7 +54,9 @@ class TaxExportService {
   }) async {
     final inRange = trips
         .where((t) =>
-            t.date.compareTo(startDate) >= 0 && t.date.compareTo(endDate) <= 0)
+            t.isBusiness &&
+            t.date.compareTo(startDate) >= 0 &&
+            t.date.compareTo(endDate) <= 0)
         .toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 

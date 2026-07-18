@@ -98,8 +98,13 @@ class ReportService {
     String endDate,
     double displayRate,
   ) {
-    final inRange =
-        trips.where((t) => t.date.compareTo(startDate) >= 0 && t.date.compareTo(endDate) <= 0);
+    // Tax / reimbursement totals use business trips only.
+    final inRange = trips.where(
+      (t) =>
+          t.isBusiness &&
+          t.date.compareTo(startDate) >= 0 &&
+          t.date.compareTo(endDate) <= 0,
+    );
     final totalMiles = inRange.fold<double>(0, (sum, t) => sum + t.miles);
     final totalTips = inRange.fold<double>(0, (sum, t) => sum + t.tips);
     // Per-trip IRS rate (correct across year boundaries).

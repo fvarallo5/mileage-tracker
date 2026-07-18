@@ -514,3 +514,97 @@ tr:hover td {
   text-align: center;
   line-height: 1.5;
 }
+
+.app-footer {
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.app-footer a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.app-footer a:hover {
+  color: var(--accent, #3d8bfd);
+  text-decoration: underline;
+}
+
+.rate-badge strong {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.purpose-toggle {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.purpose-toggle button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.purpose-toggle button.active.business {
+  background: rgba(52, 211, 153, 0.18);
+  color: #34d399;
+}
+
+.purpose-toggle button.active.personal {
+  background: var(--surface-3, rgba(255, 255, 255, 0.06));
+  color: var(--text);
+}
+
+.field-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.purpose-badge {
+  border: none;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.purpose-badge.business {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+}
+
+.purpose-badge.personal {
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--text-muted);
+}
+
+tr.trip-personal td {
+  opacity: 0.75;
+}
+
+td.strike {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}

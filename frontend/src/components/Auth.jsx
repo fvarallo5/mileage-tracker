@@ -109,6 +109,14 @@ export default function Auth({ onSignIn, onSignUp, onGuest }) {
 
         <p className="auth-footnote">
           Guest mode keeps data on this browser only. Create an account to sync across devices.
+          <br />
+          <a
+            href="https://cdn.jsdelivr.net/gh/fvarallo5/mileage-tracker@main/static/privacy.html"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Privacy Policy
+          </a>
         </p>
       </div>
     </div>

@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 import '../config/app_config.dart';
 import '../providers/app_state.dart';
 import '../providers/auth_state.dart';
@@ -13,6 +11,7 @@ import '../services/battery_mode.dart';
 import '../services/irs_mileage_rate.dart';
 import '../services/theme_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/open_url.dart';
 import '../utils/premium_permission_flow.dart';
 import '../widgets/app_bottom_sheet.dart';
 
@@ -265,7 +264,7 @@ class _SettingsSheetBody extends StatelessWidget {
                 leading: Icon(Icons.manage_accounts_outlined, color: p.textMuted, size: 20),
                 title: const Text('Manage subscription'),
                 trailing: Icon(Icons.open_in_new, size: 16, color: p.textMuted),
-                onTap: () => _openUrl(
+                onTap: () => openUrl(
                   Platform.isIOS
                       ? 'https://apps.apple.com/account/subscriptions'
                       : 'https://play.google.com/store/account/subscriptions',
@@ -318,14 +317,14 @@ class _SettingsSheetBody extends StatelessWidget {
               leading: const Icon(Icons.privacy_tip_outlined, color: AppColors.accent),
               title: const Text('Privacy Policy'),
               trailing: Icon(Icons.open_in_new, size: 16, color: p.textMuted),
-              onTap: () => _openUrl(AppConfig.privacyPolicyUrl),
+              onTap: openPrivacyPolicy,
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.email_outlined, color: p.textMuted),
               title: const Text('Support'),
               subtitle: Text(AppConfig.supportEmail, style: TextStyle(fontSize: 12, color: p.textMuted)),
-              onTap: () => _openUrl('mailto:${AppConfig.supportEmail}'),
+              onTap: openSupportEmail,
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
@@ -363,9 +362,3 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-Future<void> _openUrl(String url) async {
-  final uri = Uri.parse(url);
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-}

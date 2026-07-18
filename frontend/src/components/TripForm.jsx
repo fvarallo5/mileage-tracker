@@ -7,6 +7,7 @@ export default function TripForm({ onSubmit, editing, onCancel }) {
   const [miles, setMiles] = useState(editing?.miles?.toString() ?? '');
   const [tips, setTips] = useState(editing?.tips?.toString() ?? '');
   const [notes, setNotes] = useState(editing?.notes ?? '');
+  const [isBusiness, setIsBusiness] = useState(editing?.is_business !== false);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e) {
@@ -18,11 +19,13 @@ export default function TripForm({ onSubmit, editing, onCancel }) {
         miles: parseFloat(miles),
         tips: parseFloat(tips) || 0,
         notes,
+        is_business: isBusiness,
       });
       if (!editing) {
         setMiles('');
         setTips('');
         setNotes('');
+        setIsBusiness(true);
       }
     } finally {
       setSubmitting(false);
@@ -31,6 +34,30 @@ export default function TripForm({ onSubmit, editing, onCancel }) {
 
   return (
     <form onSubmit={handleSubmit}>
+      <div className="form-group">
+        <label>Purpose</label>
+        <div className="purpose-toggle" role="group" aria-label="Trip purpose">
+          <button
+            type="button"
+            className={isBusiness ? 'active business' : ''}
+            onClick={() => setIsBusiness(true)}
+          >
+            Business
+          </button>
+          <button
+            type="button"
+            className={!isBusiness ? 'active personal' : ''}
+            onClick={() => setIsBusiness(false)}
+          >
+            Personal
+          </button>
+        </div>
+        <p className="field-hint">
+          {isBusiness
+            ? 'Counts toward reports and tax totals.'
+            : 'Excluded from deductible miles.'}
+        </p>
+      </div>
       <div className="form-row">
         <div className="form-group">
           <label htmlFor="date">Date</label>

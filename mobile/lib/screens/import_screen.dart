@@ -49,7 +49,7 @@ class _ImportScreenState extends State<ImportScreen> {
 
   Future<void> _loadFormats() async {
     try {
-      final formats = await context.read<AppState>().api.getImportFormats();
+      final formats = await context.read<AppState>().supabase.getImportFormats();
       if (mounted) setState(() => _formats = formats);
     } catch (_) {}
   }
@@ -89,7 +89,7 @@ class _ImportScreenState extends State<ImportScreen> {
     });
 
     try {
-      final result = await context.read<AppState>().api.previewImport(
+      final result = await context.read<AppState>().supabase.previewImport(
             csv: _csvController.text,
             platform: _platform,
             defaultMiles: _defaultMiles,
@@ -110,7 +110,7 @@ class _ImportScreenState extends State<ImportScreen> {
 
     try {
       final state = context.read<AppState>();
-      final result = await state.api.importTrips(
+      final result = await state.supabase.importTrips(
         csv: _csvController.text,
         platform: _platform,
         defaultMiles: _defaultMiles,

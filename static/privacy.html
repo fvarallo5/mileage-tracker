@@ -4,47 +4,296 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TrekTrack — Privacy Policy</title>
+  <meta name="description" content="How TrekTrack collects, uses, and protects your trip and location data." />
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; line-height: 1.6; color: #1a1a1a; }
-    h1 { font-size: 1.5rem; }
-    h2 { font-size: 1.1rem; margin-top: 1.5rem; }
-    p, li { font-size: 0.95rem; }
-    .updated { color: #666; font-size: 0.85rem; }
+    :root {
+      --bg: #0a0e14;
+      --surface: #121820;
+      --border: #1e2836;
+      --text: #e8edf5;
+      --muted: #8b9bb0;
+      --accent: #3d8bfd;
+      --link: #6eb0ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 16px;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #3d8bfd, #2563c7);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 14px;
+      color: #fff;
+    }
+    .brand span { font-weight: 700; letter-spacing: -0.02em; }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin: 0 0 8px;
+      line-height: 1.25;
+    }
+    .updated {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin: 0 0 28px;
+    }
+    h2 {
+      font-size: 1.05rem;
+      font-weight: 650;
+      margin: 2rem 0 0.65rem;
+      letter-spacing: -0.01em;
+    }
+    p, li { color: var(--text); }
+    p { margin: 0 0 0.85rem; }
+    ul {
+      margin: 0 0 0.85rem;
+      padding-left: 1.25rem;
+    }
+    li { margin-bottom: 0.45rem; }
+    li strong { color: #fff; font-weight: 600; }
+    a { color: var(--link); }
+    a:hover { text-decoration: underline; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin: 1.25rem 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .card strong { color: var(--text); }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f7f9fc;
+        --surface: #ffffff;
+        --border: #e2e8f0;
+        --text: #0f172a;
+        --muted: #64748b;
+        --accent: #2563eb;
+        --link: #1d4ed8;
+      }
+      li strong { color: var(--text); }
+    }
   </style>
 </head>
 <body>
-  <h1>TrekTrack Privacy Policy</h1>
-  <p class="updated">Last updated: July 2026</p>
+  <div class="wrap">
+    <a class="brand" href="#" aria-label="TrekTrack">
+      <div class="logo">TT</div>
+      <span>TrekTrack</span>
+    </a>
 
-  <p>TrekTrack helps gig workers and companies log audit-ready trip mileage, tips, and expense reports. This policy explains what data we collect and how we use it.</p>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: July 18, 2026</p>
 
-  <h2>Information We Collect</h2>
-  <ul>
-    <li><strong>Location data:</strong> When you start GPS tracking, we use your device location to calculate trip distance. Background location may be used during active trips or while auto-detect monitoring is enabled. You can turn this off anytime in app Settings.</li>
-    <li><strong>Trip data:</strong> Dates, miles driven, tips/earnings, notes, and import source (e.g. Uber, DoorDash) that you enter or import.</li>
-    <li><strong>Settings:</strong> Your preferred IRS mileage reimbursement rate, battery mode, and theme preference.</li>
-  </ul>
+    <p>
+      TrekTrack (“we,” “us,” or “our”) is a mileage logging app for gig workers and teams.
+      This Privacy Policy explains what information we collect, how we use it, and the choices you have.
+      By using TrekTrack (the mobile app and web app), you agree to this policy.
+    </p>
 
-  <h2>How We Use Your Data</h2>
-  <ul>
-    <li>To calculate mileage, expenses, and earnings reports</li>
-    <li>To store and sync your trips via Supabase (secure cloud database)</li>
-    <li>We do not sell your personal data to third parties</li>
-  </ul>
+    <div class="card">
+      <strong>Short version:</strong> We collect location and trip data so we can calculate mileage and reports for you.
+      We store it in your account with row-level security. We do not sell your personal data or use your location for advertising.
+    </div>
 
-  <h2>Data Storage</h2>
-  <p>Trip data is stored in Supabase, a hosted PostgreSQL database with row-level security. You can delete individual trips within the app at any time.</p>
+    <h2>1. Who this policy covers</h2>
+    <p>
+      This policy applies to the TrekTrack mobile applications (iOS and Android), the TrekTrack web app,
+      and related services operated in connection with the app. It does not cover third-party platforms
+      you may import data from (for example Uber, DoorDash, Lyft, or Instacart).
+    </p>
 
-  <h2>Third-Party Services</h2>
-  <p>If you import CSV files from Uber, DoorDash, Lyft, or Instacart, that data is parsed and stored in your account. We are not affiliated with these companies. Cloud infrastructure is provided by Supabase.</p>
+    <h2>2. Information we collect</h2>
+    <ul>
+      <li>
+        <strong>Account information.</strong>
+        Email address and authentication credentials when you sign up or sign in
+        (including optional guest / anonymous sessions). Auth is handled by Supabase Auth.
+      </li>
+      <li>
+        <strong>Location data.</strong>
+        When you start GPS tracking or enable auto-detect, we access device location to measure distance
+        and detect driving. This may include:
+        <ul>
+          <li><em>While using the app</em> — for active manual trips.</li>
+          <li><em>In the background / “Always”</em> — when you enable background tracking (Pro) or auto-detect,
+            so mileage can continue while you use other apps or the screen is locked.</li>
+        </ul>
+        We may store start/end coordinates and a sparse route of points for a trip so you can review maps and verify mileage.
+        Location is not collected when tracking and auto-detect are both off.
+      </li>
+      <li>
+        <strong>Trip and expense data.</strong>
+        Dates, miles, tips or earnings you enter, notes, business vs personal purpose,
+        import source labels, and related report totals.
+      </li>
+      <li>
+        <strong>Imported files.</strong>
+        If you upload a CSV export from a gig platform, we parse trip rows you choose to import into your account.
+        Files are processed to extract trip fields; we do not use imports for advertising.
+      </li>
+      <li>
+        <strong>App preferences.</strong>
+        Settings such as theme (light/dark/system), battery/GPS accuracy mode, auto-detect on/off,
+        lock-screen controls preference, and the IRS mileage rate used for reports (synced from published IRS rates).
+      </li>
+      <li>
+        <strong>Device and purchase signals.</strong>
+        Subscription status via Apple App Store or Google Play billing (we receive purchase tokens / entitlement status,
+        not your full payment card details). On-device notifications may show trip controls and live mileage while tracking.
+      </li>
+      <li>
+        <strong>Diagnostics (limited).</strong>
+        Basic operational errors needed to keep the service working (for example failed sync messages shown in-app).
+        We do not run third-party advertising SDKs that track you across apps.
+      </li>
+    </ul>
 
-  <h2>Your Rights</h2>
-  <p>You may request deletion of your data by contacting us at <a href="mailto:support@trektrack.app">support@trektrack.app</a>.</p>
+    <h2>3. How we use your information</h2>
+    <ul>
+      <li>Calculate trip distance, mileage expenses, and earnings-related reports</li>
+      <li>Sync and store your trips securely in your account</li>
+      <li>Power auto-detect, background tracking, maps, tax export packages, and lock-screen controls you enable</li>
+      <li>Authenticate you and protect account access</li>
+      <li>Process Pro subscriptions and restore purchases</li>
+      <li>Respond to support requests you send us</li>
+      <li>Improve reliability and fix bugs</li>
+    </ul>
+    <p>We do <strong>not</strong> sell your personal information. We do not use your location data for targeted advertising.</p>
 
-  <h2>Children</h2>
-  <p>This app is not intended for users under 18.</p>
+    <h2>4. Legal bases (where applicable)</h2>
+    <p>
+      If you are in a region that requires a legal basis for processing (such as the EEA/UK), we process data
+      to perform our contract with you (providing the app), with your consent where required (for example certain
+      location permissions), and for legitimate interests such as securing the service and preventing abuse,
+      balanced against your rights.
+    </p>
 
-  <h2>Contact</h2>
-  <p>Questions about this policy: <a href="mailto:support@trektrack.app">support@trektrack.app</a></p>
+    <h2>5. How we store and protect data</h2>
+    <p>
+      Trip and settings data are stored in Supabase (hosted PostgreSQL) with authentication and
+      <strong>row-level security</strong> so users can only access their own rows.
+      Data is transmitted over HTTPS. No method of transmission or storage is 100% secure;
+      we take reasonable technical and organizational measures appropriate to a consumer productivity app.
+    </p>
+    <p>
+      Some preferences (for example theme, battery mode, usage counters for free auto-detect limits,
+      and local premium flags used in development) may also be stored on your device.
+    </p>
+
+    <h2>6. Data retention</h2>
+    <p>
+      We retain trip and account data while your account is active so you can run multi-year reports and tax exports.
+      You may delete individual trips in the app at any time.
+      If you request full account deletion (see below), we will delete or anonymize personal data associated with
+      your account except where we must retain limited records for legal, security, or accounting reasons
+      (for example app store transaction records held by Apple or Google).
+    </p>
+
+    <h2>7. Sharing and third parties</h2>
+    <p>We share data only as needed to run TrekTrack:</p>
+    <ul>
+      <li>
+        <strong>Supabase</strong> — authentication, database, and related backend infrastructure.
+        See <a href="https://supabase.com/privacy" rel="noopener noreferrer">Supabase Privacy Policy</a>.
+      </li>
+      <li>
+        <strong>Apple / Google</strong> — in-app purchases and platform services subject to their terms and privacy policies.
+      </li>
+      <li>
+        <strong>Map tiles (OpenStreetMap via flutter_map)</strong> — when you view trip maps, your device may request
+        map imagery from tile providers. Those requests can include network information typical of any map load.
+      </li>
+      <li>
+        <strong>Service providers</strong> we may use strictly to host or operate the product, under obligations
+        to protect your data.
+      </li>
+      <li>
+        <strong>Legal requirements</strong> — if required by law, regulation, legal process, or to protect rights,
+        safety, and security.
+      </li>
+    </ul>
+    <p>
+      Gig platforms (Uber, DoorDash, Lyft, Instacart, and others) are independent. If you import their CSV exports,
+      that content becomes part of your TrekTrack trip history under this policy. We are not affiliated with those companies.
+    </p>
+
+    <h2>8. Your choices and rights</h2>
+    <ul>
+      <li><strong>Location:</strong> Deny or revoke location permission in system Settings. Turn off auto-detect or stop tracking in the app.</li>
+      <li><strong>Notifications:</strong> Disable TrekTrack notifications in system Settings (lock-screen trip controls will not appear).</li>
+      <li><strong>Trips:</strong> Edit or delete trips in the app.</li>
+      <li><strong>Exports:</strong> Export tax packages / reports you generate; those files live on your device or wherever you share them.</li>
+      <li><strong>Account deletion:</strong> Email <a href="mailto:support@trektrack.app">support@trektrack.app</a> from your account email and request deletion. We will confirm and delete account data within a reasonable period (typically within 30 days).</li>
+    </ul>
+    <p>
+      Depending on where you live, you may have rights to access, correct, delete, or export personal data,
+      or to object to / restrict certain processing. Contact us to exercise these rights.
+      You may also lodge a complaint with a supervisory authority where applicable.
+    </p>
+
+    <h2>9. Children’s privacy</h2>
+    <p>
+      TrekTrack is not directed to children under 13 (or under 16 where a higher age applies),
+      and we do not knowingly collect personal information from children.
+      If you believe a child has provided us data, contact us and we will take appropriate steps to delete it.
+    </p>
+
+    <h2>10. International transfers</h2>
+    <p>
+      Your information may be processed in the United States or other countries where our infrastructure
+      providers operate. Those countries may have different data protection laws than your home country.
+    </p>
+
+    <h2>11. Changes to this policy</h2>
+    <p>
+      We may update this Privacy Policy from time to time. We will revise the “Last updated” date above
+      and, when changes are material, provide additional notice in the app or by other reasonable means.
+      Continued use after an update means you accept the revised policy.
+    </p>
+
+    <h2>12. Contact</h2>
+    <p>
+      Questions about privacy or data requests:<br />
+      <a href="mailto:support@trektrack.app">support@trektrack.app</a>
+    </p>
+
+    <footer>
+      © 2026 TrekTrack. Audit-ready mileage for gig workers and teams.
+    </footer>
+  </div>
 </body>
 </html>

@@ -61,8 +61,8 @@ class ReportsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Export a TurboTax-ready mileage log and Schedule C summary '
-                      'for $taxYear (standard mileage method).',
+                      'Business miles only (personal trips excluded). TurboTax-ready log '
+                      'and Schedule C summary for $taxYear.',
                       style: TextStyle(fontSize: 13, color: p.textMuted, height: 1.35),
                     ),
                     const SizedBox(height: AppSpacing.md),

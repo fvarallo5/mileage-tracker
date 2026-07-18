@@ -22,7 +22,7 @@ import '../services/trip_tracker.dart';
 import '../services/usage_service.dart';
 
 class AppState extends ChangeNotifier {
-  AppState(this._api) {
+  AppState(this._supabase) {
     _tracker = TripTracker();
     _premium = PremiumService();
     _billing = BillingService(_premium)..onChanged = notifyListeners;
@@ -36,7 +36,7 @@ class AppState extends ChangeNotifier {
     _tracker.onPosition = _onTrackerPosition;
   }
 
-  final SupabaseService _api;
+  final SupabaseService _supabase;
   late final TripTracker _tracker;
   late final PremiumService _premium;
   late final BillingService _billing;
@@ -45,7 +45,7 @@ class AppState extends ChangeNotifier {
   late final LockScreenTripService _lockScreen;
   late final AutoDetectService _autoDetect;
 
-  SupabaseService get api => _api;
+  SupabaseService get supabase => _supabase;
   PremiumService get premium => _premium;
   BillingService get billing => _billing;
   BatteryService get battery => _battery;
@@ -85,7 +85,7 @@ class AppState extends ChangeNotifier {
       return;
     }
 
-    await _api.initialize();
+    await _supabase.initialize();
     await _premium.load();
     await _usage.load();
     await _battery.load();
@@ -131,7 +131,7 @@ class AppState extends ChangeNotifier {
     error = null;
     notifyListeners();
 
-    connected = await _api.healthCheck();
+    connected = await _supabase.healthCheck();
     if (!connected) {
       loading = false;
       error = 'Cannot reach Supabase. Check your connection and project settings.';
@@ -141,8 +141,8 @@ class AppState extends ChangeNotifier {
 
     try {
       final results = await Future.wait([
-        _api.getTrips(limit: 100),
-        _api.getReportSummary(),
+        _supabase.getTrips(limit: 100),
+        _supabase.getReportSummary(),
       ]);
       trips = results[0] as List<Trip>;
       summary = results[1] as ReportSummary;
@@ -164,9 +164,9 @@ class AppState extends ChangeNotifier {
     final irs = IrsMileageRate.current;
     mileageRate = irs;
     try {
-      final stored = await _api.getMileageRate();
+      final stored = await _supabase.getMileageRate();
       if ((stored - irs).abs() > 0.0005) {
-        mileageRate = await _api.setMileageRate(irs);
+        mileageRate = await _supabase.setMileageRate(irs);
       }
     } catch (_) {
       // Offline or RLS — still use IRS locally for reports.
@@ -175,18 +175,13 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> loadReportHistory() async {
-    reportHistory = await _api.getReports(reportPeriod, count: 8);
+    reportHistory = await _supabase.getReports(reportPeriod, count: 8);
     notifyListeners();
   }
 
   Future<void> setReportPeriod(String period) async {
     reportPeriod = period;
     await loadReportHistory();
-  }
-
-  Future<void> setMileageRate(double rate) async {
-    mileageRate = await _api.setMileageRate(rate);
-    await refresh();
   }
 
   Future<void> exportTaxPackage({int? year}) async {
@@ -221,14 +216,10 @@ class AppState extends ChangeNotifier {
     return 'Pro unlocked for development testing.';
   }
 
-  Future<String?> setAutoDetect(bool enabled) async {
-    if (!enabled) {
-      await _premium.setAutoDetect(false);
-      await _syncAutoDetectMonitoring();
-      notifyListeners();
-      return null;
-    }
-    return 'Use enableAutoDetect() after showing the permission explainer.';
+  Future<void> disableAutoDetect() async {
+    await _premium.setAutoDetect(false);
+    await _syncAutoDetectMonitoring();
+    notifyListeners();
   }
 
   Future<String?> enableAutoDetect() async {
@@ -409,6 +400,7 @@ class AppState extends ChangeNotifier {
       tips: tips,
       notes: notes,
       source: resolvedSource,
+      isBusiness: true,
       startLat: result.start?.lat,
       startLng: result.start?.lng,
       endLat: result.end?.lat,
@@ -424,6 +416,7 @@ class AppState extends ChangeNotifier {
     double tips = 0,
     String notes = '',
     String source = 'manual',
+    bool isBusiness = true,
     double? startLat,
     double? startLng,
     double? endLat,
@@ -432,14 +425,22 @@ class AppState extends ChangeNotifier {
   }) async {
     final Trip trip;
     if (id != null) {
-      trip = await _api.updateTrip(id, date: date, miles: miles, tips: tips, notes: notes);
+      trip = await _supabase.updateTrip(
+        id,
+        date: date,
+        miles: miles,
+        tips: tips,
+        notes: notes,
+        isBusiness: isBusiness,
+      );
     } else {
-      trip = await _api.createTrip(
+      trip = await _supabase.createTrip(
         date: date,
         miles: miles,
         tips: tips,
         notes: notes,
         source: source,
+        isBusiness: isBusiness,
         startLat: startLat,
         startLng: startLng,
         endLat: endLat,
@@ -451,8 +452,35 @@ class AppState extends ChangeNotifier {
     return trip;
   }
 
+  /// One-tap Business ↔ Personal. Updates list optimistically, then syncs.
+  Future<void> setTripBusiness(int id, bool isBusiness) async {
+    final index = trips.indexWhere((t) => t.id == id);
+    if (index >= 0) {
+      trips = List<Trip>.from(trips)..[index] = trips[index].copyWith(isBusiness: isBusiness);
+      notifyListeners();
+    }
+
+    try {
+      final updated = await _supabase.setTripBusiness(id, isBusiness);
+      if (index >= 0) {
+        trips = List<Trip>.from(trips)..[index] = updated;
+      }
+      // Refresh summary so week/month/tax numbers exclude personal miles.
+      summary = await _supabase.getReportSummary();
+      reportHistory = await _supabase.getReports(reportPeriod, count: 8);
+      error = null;
+      notifyListeners();
+    } on ApiException catch (e) {
+      error = e.message;
+      await refresh();
+    } catch (e) {
+      error = 'Failed to update trip purpose: $e';
+      await refresh();
+    }
+  }
+
   Future<void> deleteTrip(int id) async {
-    await _api.deleteTrip(id);
+    await _supabase.deleteTrip(id);
     await refresh();
   }
 

@@ -7,6 +7,7 @@ import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bottom_sheet.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/purpose_toggle.dart';
 import '../widgets/section_header.dart';
 import '../widgets/trip_tile.dart';
 import '../widgets/trips_map.dart';
@@ -58,7 +59,7 @@ class TripsScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               SectionHeader(
                 title: 'Recent Trips',
-                subtitle: '${state.trips.length} logged',
+                subtitle: _tripsSubtitle(state.trips),
               ),
               if (state.trips.isEmpty)
                 EmptyState(
@@ -77,6 +78,9 @@ class TripsScreen extends StatelessWidget {
                     trip: trip,
                     onTap: () => _showTripForm(context, trip: trip),
                     onDelete: () => _delete(context, state, trip),
+                    onPurposeChanged: trip.id == null
+                        ? null
+                        : (isBusiness) => state.setTripBusiness(trip.id!, isBusiness),
                   ),
                 ),
             ],
@@ -84,6 +88,13 @@ class TripsScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _tripsSubtitle(List<Trip> trips) {
+    final business = trips.where((t) => t.isBusiness).length;
+    final personal = trips.length - business;
+    if (personal == 0) return '$business business · tap badge to mark personal';
+    return '$business business · $personal personal';
   }
 
   Future<void> _showTripForm(BuildContext context, {Trip? trip}) async {
@@ -94,51 +105,79 @@ class TripsScreen extends StatelessWidget {
     final milesController = TextEditingController(text: trip?.miles.toString() ?? '');
     final tipsController = TextEditingController(text: trip?.tips.toString() ?? '');
     final notesController = TextEditingController(text: trip?.notes ?? '');
+    var isBusiness = trip?.isBusiness ?? true;
 
     final saved = await showAppBottomSheet<bool>(
       context,
-      AppBottomSheet(
-        title: trip == null ? 'New Trip' : 'Edit Trip',
-        children: [
-          TextField(
-            controller: dateController,
-            decoration: const InputDecoration(labelText: 'Date (YYYY-MM-DD)'),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: milesController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Miles'),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: tipsController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Tips / Earnings (\$)'),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: notesController,
-            decoration: const InputDecoration(labelText: 'Notes'),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          FilledButton(
-            onPressed: () async {
-              final miles = double.tryParse(milesController.text);
-              if (miles == null || miles <= 0) return;
-              final tips = double.tryParse(tipsController.text) ?? 0;
-              await state.saveTrip(
-                id: trip?.id,
-                date: dateController.text,
-                miles: miles,
-                tips: tips,
-                notes: notesController.text,
-              );
-              if (context.mounted) Navigator.pop(context, true);
-            },
-            child: Text(trip == null ? 'Save Trip' : 'Update Trip'),
-          ),
-        ],
+      StatefulBuilder(
+        builder: (context, setModalState) {
+          return AppBottomSheet(
+            title: trip == null ? 'New Trip' : 'Edit Trip',
+            children: [
+              Text(
+                'Purpose',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: context.palette.textMuted,
+                    ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              PurposeToggle(
+                isBusiness: isBusiness,
+                onChanged: (value) => setModalState(() => isBusiness = value),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                isBusiness
+                    ? 'Counts toward reports and tax export.'
+                    : 'Excluded from deductible miles and tax package.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 12,
+                      color: context.palette.textMuted,
+                    ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: dateController,
+                decoration: const InputDecoration(labelText: 'Date (YYYY-MM-DD)'),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: milesController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Miles'),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: tipsController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Tips / Earnings (\$)'),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: notesController,
+                decoration: const InputDecoration(labelText: 'Notes'),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton(
+                onPressed: () async {
+                  final miles = double.tryParse(milesController.text);
+                  if (miles == null || miles <= 0) return;
+                  final tips = double.tryParse(tipsController.text) ?? 0;
+                  await state.saveTrip(
+                    id: trip?.id,
+                    date: dateController.text,
+                    miles: miles,
+                    tips: tips,
+                    notes: notesController.text,
+                    isBusiness: isBusiness,
+                  );
+                  if (context.mounted) Navigator.pop(context, true);
+                },
+                child: Text(trip == null ? 'Save Trip' : 'Update Trip'),
+              ),
+            ],
+          );
+        },
       ),
     );
 

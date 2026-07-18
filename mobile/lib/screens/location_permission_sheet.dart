@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../config/app_config.dart';
 import '../theme/app_theme.dart';
+import '../utils/open_url.dart';
 import '../widgets/app_bottom_sheet.dart';
 
 enum LocationPermissionReason {
@@ -86,7 +85,7 @@ class _LocationPermissionSheet extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
         TextButton(
-          onPressed: () => _openPrivacyPolicy(),
+          onPressed: openPrivacyPolicy,
           child: const Text('Read our Privacy Policy'),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -124,12 +123,6 @@ class _LocationPermissionSheet extends StatelessWidget {
     );
   }
 
-  Future<void> _openPrivacyPolicy() async {
-    final uri = Uri.parse(AppConfig.privacyPolicyUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
 }
 
 class _ExplainerRow extends StatelessWidget {

@@ -1,4 +1,4 @@
--- Mileage Tracker — Supabase schema
+-- TrekTrack — Supabase schema
 -- Dashboard: SQL Editor → paste this entire file → Run
 -- Required: Authentication → Providers → Anonymous sign-ins → ON
 

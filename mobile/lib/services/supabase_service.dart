@@ -15,7 +15,7 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-/// Supabase-backed data layer — replaces the Express API.
+/// Supabase-backed data layer for trips, settings, and imports.
 class SupabaseService {
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -54,6 +54,7 @@ class SupabaseService {
     double tips = 0,
     String notes = '',
     String source = 'manual',
+    bool isBusiness = true,
     double? startLat,
     double? startLng,
     double? endLat,
@@ -70,6 +71,7 @@ class SupabaseService {
       'tips': tips,
       'notes': notes,
       'source': source,
+      'is_business': isBusiness,
     };
     if (startLat != null) payload['start_lat'] = startLat;
     if (startLng != null) payload['start_lng'] = startLng;
@@ -81,8 +83,7 @@ class SupabaseService {
       final row = await _client.from('trips').insert(payload).select().single();
       return _tripFromRow(row);
     } catch (_) {
-      // Route columns may not be migrated yet — fall back to core fields.
-      if (route.isEmpty && startLat == null) rethrow;
+      // Newer columns may not be migrated yet — fall back to core fields.
       final row = await _client.from('trips').insert({
         'user_id': userId,
         'date': date,
@@ -91,7 +92,7 @@ class SupabaseService {
         'notes': notes,
         'source': source,
       }).select().single();
-      return _tripFromRow(row);
+      return _tripFromRow(row).copyWith(isBusiness: isBusiness);
     }
   }
 
@@ -101,15 +102,43 @@ class SupabaseService {
     required double miles,
     double tips = 0,
     String notes = '',
+    bool isBusiness = true,
   }) async {
-    final row = await _client.from('trips').update({
-      'date': date,
-      'miles': miles,
-      'tips': tips,
-      'notes': notes,
-    }).eq('id', id).select().single();
+    try {
+      final row = await _client.from('trips').update({
+        'date': date,
+        'miles': miles,
+        'tips': tips,
+        'notes': notes,
+        'is_business': isBusiness,
+      }).eq('id', id).select().single();
+      return _tripFromRow(row);
+    } catch (_) {
+      final row = await _client.from('trips').update({
+        'date': date,
+        'miles': miles,
+        'tips': tips,
+        'notes': notes,
+      }).eq('id', id).select().single();
+      return _tripFromRow(row).copyWith(isBusiness: isBusiness);
+    }
+  }
 
-    return _tripFromRow(row);
+  /// Quick purpose toggle without rewriting the whole trip.
+  Future<Trip> setTripBusiness(int id, bool isBusiness) async {
+    try {
+      final row = await _client
+          .from('trips')
+          .update({'is_business': isBusiness})
+          .eq('id', id)
+          .select()
+          .single();
+      return _tripFromRow(row);
+    } catch (e) {
+      throw ApiException(
+        'Could not update trip purpose. Run migration 003_trip_business.sql in Supabase.',
+      );
+    }
   }
 
   Future<void> deleteTrip(int id) async {
@@ -205,14 +234,26 @@ class SupabaseService {
         continue;
       }
 
-      await _client.from('trips').insert({
-        'user_id': userId,
-        'date': date,
-        'miles': miles,
-        'tips': tips,
-        'notes': trip['notes'],
-        'source': source,
-      });
+      try {
+        await _client.from('trips').insert({
+          'user_id': userId,
+          'date': date,
+          'miles': miles,
+          'tips': tips,
+          'notes': trip['notes'],
+          'source': source,
+          'is_business': true,
+        });
+      } catch (_) {
+        await _client.from('trips').insert({
+          'user_id': userId,
+          'date': date,
+          'miles': miles,
+          'tips': tips,
+          'notes': trip['notes'],
+          'source': source,
+        });
+      }
       importedCount++;
     }
 
@@ -235,6 +276,7 @@ class SupabaseService {
       'tips': row['tips'],
       'notes': row['notes'],
       'source': row['source'],
+      'is_business': row['is_business'] ?? true,
       'created_at': row['created_at'],
       'start_lat': row['start_lat'],
       'start_lng': row['start_lng'],

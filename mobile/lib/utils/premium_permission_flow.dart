@@ -30,7 +30,7 @@ class PremiumPermissionFlow {
     bool enabled,
   ) async {
     if (!enabled) {
-      await state.setAutoDetect(false);
+      await state.disableAutoDetect();
       return;
     }
 

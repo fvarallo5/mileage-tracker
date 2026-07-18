@@ -14,7 +14,7 @@ function MainApp({ auth, onSignOut }) {
   const [tab, setTab] = useState('trips');
   const [trips, setTrips] = useState([]);
   const [summary, setSummary] = useState(null);
-  const [mileageRate, setMileageRate] = useState('0.70');
+  const [mileageRate, setMileageRate] = useState('0.725');
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,7 +30,7 @@ function MainApp({ auth, onSignOut }) {
       ]);
       setTrips(tripsData);
       setSummary(summaryData);
-      setMileageRate(settings.mileage_rate ?? '0.70');
+      setMileageRate(String(settings.mileage_rate ?? '0.725'));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -58,14 +58,15 @@ function MainApp({ auth, onSignOut }) {
     await loadData();
   }
 
-  async function handleRateChange(e) {
-    const val = e.target.value;
-    setMileageRate(val);
-    const rate = parseFloat(val);
-    if (rate > 0) {
-      await api.setMileageRate(rate);
-      await loadData();
-    }
+  async function handleTogglePurpose(trip) {
+    await api.updateTrip(trip.id, {
+      date: trip.date,
+      miles: trip.miles,
+      tips: trip.tips,
+      notes: trip.notes,
+      is_business: trip.is_business === false,
+    });
+    await loadData();
   }
 
   if (loading) {
@@ -91,18 +92,9 @@ function MainApp({ auth, onSignOut }) {
           <button type="button" className="btn-ghost btn-sm" onClick={onSignOut}>
             Sign out
           </button>
-          <div className="rate-badge">
+          <div className="rate-badge" title="IRS standard business mileage rate (auto)">
             <span>IRS rate</span>
-            <span>$</span>
-            <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={mileageRate}
-              onChange={handleRateChange}
-              title="Mileage reimbursement rate per mile"
-            />
-            <span>/mi</span>
+            <strong>${Number(mileageRate).toFixed(3).replace(/0$/, '')}/mi</strong>
           </div>
         </div>
       </header>
@@ -171,12 +163,25 @@ function MainApp({ auth, onSignOut }) {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               onDelete={handleDelete}
+              onTogglePurpose={handleTogglePurpose}
             />
           </div>
         </div>
       )}
 
       {tab === 'reports' && <Reports />}
+
+      <footer className="app-footer">
+        <a
+          href="https://cdn.jsdelivr.net/gh/fvarallo5/mileage-tracker@main/static/privacy.html"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Privacy Policy
+        </a>
+        <span aria-hidden="true">·</span>
+        <a href="mailto:support@trektrack.app">support@trektrack.app</a>
+      </footer>
     </div>
   );
 }

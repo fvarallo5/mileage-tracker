@@ -6,8 +6,9 @@ import 'supabase_config.dart';
 class AppConfig {
   static const privacyUrlOverride = String.fromEnvironment('PRIVACY_URL');
 
+  /// Served via jsDelivr so browsers get HTML (raw.githubusercontent.com is often plain text).
   static const productionPrivacyUrl =
-      'https://raw.githubusercontent.com/fvarallo5/mileage-tracker/main/static/privacy.html';
+      'https://cdn.jsdelivr.net/gh/fvarallo5/mileage-tracker@main/static/privacy.html';
 
   /// Free tier: auto-detect trips allowed per calendar month.
   static const freeAutoTripsPerMonth = 30;

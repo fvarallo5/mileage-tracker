@@ -7,6 +7,7 @@ class Trip {
   final double tips;
   final String notes;
   final String source;
+  final bool isBusiness;
   final String? createdAt;
   final double? startLat;
   final double? startLng;
@@ -21,6 +22,7 @@ class Trip {
     this.tips = 0,
     this.notes = '',
     this.source = 'manual',
+    this.isBusiness = true,
     this.createdAt,
     this.startLat,
     this.startLng,
@@ -41,6 +43,40 @@ class Trip {
     return const [];
   }
 
+  String get purposeLabel => isBusiness ? 'Business' : 'Personal';
+
+  Trip copyWith({
+    int? id,
+    String? date,
+    double? miles,
+    double? tips,
+    String? notes,
+    String? source,
+    bool? isBusiness,
+    String? createdAt,
+    double? startLat,
+    double? startLng,
+    double? endLat,
+    double? endLng,
+    List<GeoPoint>? route,
+  }) {
+    return Trip(
+      id: id ?? this.id,
+      date: date ?? this.date,
+      miles: miles ?? this.miles,
+      tips: tips ?? this.tips,
+      notes: notes ?? this.notes,
+      source: source ?? this.source,
+      isBusiness: isBusiness ?? this.isBusiness,
+      createdAt: createdAt ?? this.createdAt,
+      startLat: startLat ?? this.startLat,
+      startLng: startLng ?? this.startLng,
+      endLat: endLat ?? this.endLat,
+      endLng: endLng ?? this.endLng,
+      route: route ?? this.route,
+    );
+  }
+
   factory Trip.fromJson(Map<String, dynamic> json) {
     final routeRaw = json['route'];
     List<GeoPoint> route = const [];
@@ -55,6 +91,7 @@ class Trip {
       tips: (json['tips'] as num?)?.toDouble() ?? 0,
       notes: json['notes'] as String? ?? '',
       source: json['source'] as String? ?? 'manual',
+      isBusiness: json['is_business'] as bool? ?? true,
       createdAt: json['created_at'] as String?,
       startLat: (json['start_lat'] as num?)?.toDouble(),
       startLng: (json['start_lng'] as num?)?.toDouble(),
@@ -71,6 +108,7 @@ class Trip {
         'tips': tips,
         'notes': notes,
         'source': source,
+        'is_business': isBusiness,
       };
 
   String get sourceLabel => switch (source) {

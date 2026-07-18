@@ -10,6 +10,7 @@ function tripFromRow(row) {
     tips: Number(row.tips ?? 0),
     notes: row.notes ?? '',
     source: row.source ?? 'manual',
+    is_business: row.is_business !== false,
     created_at: row.created_at,
   };
 }
@@ -73,6 +74,7 @@ export const api = {
         tips: data.tips ?? 0,
         notes: data.notes ?? '',
         source: data.source ?? 'manual',
+        is_business: data.is_business !== false,
       })
       .select()
       .single();
@@ -89,6 +91,7 @@ export const api = {
         miles: data.miles,
         tips: data.tips ?? 0,
         notes: data.notes ?? '',
+        is_business: data.is_business !== false,
       })
       .eq('id', id)
       .select()
@@ -177,6 +180,7 @@ export const api = {
           tips: trip.tips,
           notes: trip.notes,
           source: trip.source,
+          is_business: true,
         })
         .select()
         .single();

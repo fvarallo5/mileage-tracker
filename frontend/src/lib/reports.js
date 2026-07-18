@@ -56,7 +56,10 @@ function monthLabel(date) {
 }
 
 function buildPeriodReport(trips, rate, periodKey, label, startDate, endDate) {
-  const inRange = trips.filter((t) => t.date >= startDate && t.date <= endDate);
+  // Business trips only — personal miles are not deductible.
+  const inRange = trips.filter(
+    (t) => t.is_business !== false && t.date >= startDate && t.date <= endDate,
+  );
   const totalMiles = inRange.reduce((sum, t) => sum + t.miles, 0);
   const totalTips = inRange.reduce((sum, t) => sum + t.tips, 0);
   const mileageExpense = totalMiles * rate;

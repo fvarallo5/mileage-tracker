@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:mileage_tracker/config/supabase_config.dart';
-import 'package:mileage_tracker/main.dart' show MileageTrackerApp;
-import 'package:provider/provider.dart';
+import 'package:mileage_tracker/main.dart' show TrekTrackApp;
 import 'package:mileage_tracker/providers/auth_state.dart';
 import 'package:mileage_tracker/services/auth_service.dart';
+import 'package:mileage_tracker/services/theme_service.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 const testEmail = String.fromEnvironment(
@@ -37,9 +38,12 @@ void main() {
     await authState.init();
 
     await tester.pumpWidget(
-      ChangeNotifierProvider.value(
-        value: authState,
-        child: const MileageTrackerApp(),
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: authState),
+          ChangeNotifierProvider(create: (_) => ThemeService()),
+        ],
+        child: const TrekTrackApp(),
       ),
     );
     await tester.pumpAndSettle(const Duration(seconds: 4));

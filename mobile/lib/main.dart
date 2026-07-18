@@ -42,7 +42,7 @@ Future<void> main() async {
   );
 }
 
-/// App root. [MileageTrackerApp] kept as alias for existing tests.
+/// App root.
 class TrekTrackApp extends StatelessWidget {
   const TrekTrackApp({super.key});
 
@@ -60,9 +60,6 @@ class TrekTrackApp extends StatelessWidget {
     );
   }
 }
-
-@Deprecated('Use TrekTrackApp')
-typedef MileageTrackerApp = TrekTrackApp;
 
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
@@ -153,18 +150,22 @@ class _HomeShellState extends State<HomeShell> {
 
   void _onVoiceMessage() {
     final message = _voiceCommands?.lastMessage.value;
-    if (message == null || !mounted) return;
-    setState(() => _index = 0);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    if (message == null) return;
     _voiceCommands?.lastMessage.value = null;
+    _showTripActionMessage(message);
   }
 
   void _onLockScreenMessage() {
     final message = _appState?.lockScreen.lastMessage.value;
-    if (message == null || !mounted) return;
+    if (message == null) return;
+    _appState?.lockScreen.lastMessage.value = null;
+    _showTripActionMessage(message);
+  }
+
+  void _showTripActionMessage(String message) {
+    if (!mounted) return;
     setState(() => _index = 0);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-    _appState?.lockScreen.lastMessage.value = null;
   }
 
   @override
