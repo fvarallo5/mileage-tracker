@@ -168,12 +168,24 @@
       <li>
         <strong>App preferences.</strong>
         Settings such as theme (light/dark/system), battery/GPS accuracy mode, auto-detect on/off,
-        lock-screen controls preference, and the IRS mileage rate used for reports (synced from published IRS rates).
+        lock-screen controls preference, optional road-snap (map match) for trip miles,
+        car Bluetooth / vehicle-activity gates, and the IRS mileage rate used for reports
+        (synced from published IRS rates).
       </li>
       <li>
         <strong>Device and purchase signals.</strong>
         Subscription status via Apple App Store or Google Play billing (we receive purchase tokens / entitlement status,
         not your full payment card details). On-device notifications may show trip controls and live mileage while tracking.
+      </li>
+      <li>
+        <strong>Car Bluetooth (optional).</strong>
+        If you enable “Only with car Bluetooth,” we check whether a vehicle-like Bluetooth audio device is connected
+        so auto-detect can stay off until you are in the car. We do not use Bluetooth to track you when that setting is off.
+      </li>
+      <li>
+        <strong>Motion / activity (optional).</strong>
+        If you enable “Only when in a vehicle,” we use on-device activity recognition (for example walking vs in a vehicle)
+        so GPS watching can sleep until you appear to be driving. Motion data is processed on the device for this feature.
       </li>
       <li>
         <strong>Diagnostics (limited).</strong>
@@ -236,6 +248,13 @@
       <li>
         <strong>Map tiles (OpenStreetMap via flutter_map)</strong> — when you view trip maps, your device may request
         map imagery from tile providers. Those requests can include network information typical of any map load.
+      </li>
+      <li>
+        <strong>Road matching / routing (optional)</strong> — when “Snap miles to roads” is on, after you finish a trip
+        we may send a sparse set of that trip’s coordinates to an OpenStreetMap-based routing service
+        (by default the public OSRM demo server, or a host you configure) so distance can be refined to the road network.
+        If the request fails or confidence is low, we keep your on-device GPS miles. Turn the setting off to stop
+        sending coordinates for matching.
       </li>
       <li>
         <strong>Service providers</strong> we may use strictly to host or operate the product, under obligations

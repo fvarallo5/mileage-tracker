@@ -43,3 +43,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Activity Recognition API for in-vehicle auto-detect gate.
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+}

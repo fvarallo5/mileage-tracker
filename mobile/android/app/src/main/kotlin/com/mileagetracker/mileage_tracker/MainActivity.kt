@@ -37,6 +37,8 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+        CarBluetoothHandler(this).register(flutterEngine)
+        ActivityRecognitionHandler(this).register(flutterEngine)
         deliverPendingAction()
     }
 

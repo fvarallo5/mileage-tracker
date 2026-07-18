@@ -188,6 +188,47 @@ class _SettingsSheetBody extends StatelessWidget {
               onChanged: (enabled) =>
                   PremiumPermissionFlow.setAutoDetect(context, state, enabled),
             ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Only with car Bluetooth'),
+              subtitle: Text(
+                state.carBluetoothGateEnabled
+                    ? state.carBluetooth.statusLabel
+                    : 'Sleep GPS until the car stereo connects — big battery save. '
+                        'Earbuds may also count as Bluetooth audio.',
+                style: TextStyle(fontSize: 12, color: p.textMuted),
+              ),
+              value: state.carBluetoothGateEnabled,
+              onChanged: state.autoDetectEnabled
+                  ? (v) => state.setCarBluetoothGate(v)
+                  : null,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Only when in a vehicle'),
+              subtitle: Text(
+                state.activityGateEnabled
+                    ? state.activityRecognition.statusLabel
+                    : 'Use phone motion sensors to sleep GPS until you\'re driving '
+                        '(or cycling). Works without car Bluetooth.',
+                style: TextStyle(fontSize: 12, color: p.textMuted),
+              ),
+              value: state.activityGateEnabled,
+              onChanged: state.autoDetectEnabled
+                  ? (v) => state.setActivityGate(v)
+                  : null,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Snap miles to roads'),
+              subtitle: Text(
+                'After each trip, refine distance on the road network (more accurate in cities). '
+                'Uses a routing service; falls back to GPS if offline.',
+                style: TextStyle(fontSize: 12, color: p.textMuted),
+              ),
+              value: state.mapMatchEnabled,
+              onChanged: (v) => state.setMapMatchEnabled(v),
+            ),
 
             const SizedBox(height: AppSpacing.md),
             _SectionLabel('Account'),

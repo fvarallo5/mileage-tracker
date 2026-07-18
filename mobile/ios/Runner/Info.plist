@@ -55,6 +55,8 @@
 		<string>Background tracking and auto-detect need continuous location access to log mileage while you drive for gig apps.</string>
 		<key>NSLocationAlwaysUsageDescription</key>
 		<string>Background tracking and auto-detect need continuous location access to log mileage while you drive for gig apps.</string>
+		<key>NSMotionUsageDescription</key>
+		<string>TrekTrack uses motion activity to detect when you are in a vehicle so auto-detect can sleep GPS until you start driving.</string>
 		<key>UIBackgroundModes</key>
 		<array>
 			<string>location</string>

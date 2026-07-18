@@ -9,12 +9,15 @@ import '../config/supabase_config.dart';
 import '../models/geo_point.dart';
 import '../models/period_report.dart';
 import '../models/trip.dart';
+import '../services/activity_recognition_service.dart';
 import '../services/autodetect_service.dart';
 import '../services/battery_mode.dart';
 import '../services/battery_service.dart';
 import '../services/billing_service.dart';
+import '../services/car_bluetooth_service.dart';
 import '../services/irs_mileage_rate.dart';
 import '../services/lock_screen_trip_service.dart';
+import '../services/map_match_service.dart';
 import '../services/premium_service.dart';
 import '../services/supabase_service.dart';
 import '../services/tax_export_service.dart';
@@ -28,11 +31,14 @@ class AppState extends ChangeNotifier {
     _billing = BillingService(_premium)..onChanged = notifyListeners;
     _battery = BatteryService()..addListener(notifyListeners);
     _usage = UsageService();
+    _carBluetooth = CarBluetoothService()..addListener(_onPowerGateChanged);
+    _activity = ActivityRecognitionService()..addListener(_onPowerGateChanged);
+    _mapMatch = MapMatchService()..addListener(notifyListeners);
     _lockScreen = LockScreenTripService();
     _autoDetect = AutoDetectService(
       onTripStarted: _handleAutoTripStarted,
       onTripEnded: _handleAutoTripEnded,
-    );
+    )..addListener(notifyListeners);
     _tracker.onPosition = _onTrackerPosition;
   }
 
@@ -42,6 +48,9 @@ class AppState extends ChangeNotifier {
   late final BillingService _billing;
   late final BatteryService _battery;
   late final UsageService _usage;
+  late final CarBluetoothService _carBluetooth;
+  late final ActivityRecognitionService _activity;
+  late final MapMatchService _mapMatch;
   late final LockScreenTripService _lockScreen;
   late final AutoDetectService _autoDetect;
 
@@ -50,12 +59,42 @@ class AppState extends ChangeNotifier {
   BillingService get billing => _billing;
   BatteryService get battery => _battery;
   UsageService get usage => _usage;
+  CarBluetoothService get carBluetooth => _carBluetooth;
+  ActivityRecognitionService get activityRecognition => _activity;
+  MapMatchService get mapMatch => _mapMatch;
   LockScreenTripService get lockScreen => _lockScreen;
   bool get lockScreenControlsEnabled => _lockScreen.enabled;
+  bool get mapMatchEnabled => _mapMatch.enabled;
   bool get isPremium => _premium.isPremium;
   bool get autoDetectEnabled => _premium.autoDetectEnabled;
   bool get autoDetectMonitoring => _autoDetect.isMonitoring;
+  AutoDetectPhase get autoDetectPhase => _autoDetect.phase;
+  String get autoDetectStatusLabel => _autoDetect.statusLabel;
+  String? get autoDetectStatusDetail => _autoDetect.statusDetail;
+  bool get carBluetoothGateEnabled => _carBluetooth.gateEnabled;
+  bool get carBluetoothConnected => _carBluetooth.connected;
+  bool get activityGateEnabled => _activity.gateEnabled;
+  bool get activityInVehicle => _activity.inVehicle;
   BatteryMode get batteryMode => _battery.mode;
+
+  /// All optional power gates currently allow watching (or are off).
+  bool get powerGatesAllowWatch =>
+      _carBluetooth.allowsAutoDetectWatch && _activity.allowsAutoDetectWatch;
+
+  /// True when a power gate is holding GPS watch off.
+  bool get isWaitingOnPowerGate =>
+      autoDetectEnabled &&
+      canUseAutoDetect &&
+      !trackingIsAuto &&
+      !powerGatesAllowWatch;
+
+  /// Human-readable reason GPS watch is sleeping.
+  String? get powerGateWaitLabel {
+    if (!isWaitingOnPowerGate) return null;
+    if (!_carBluetooth.allowsAutoDetectWatch) return _carBluetooth.statusLabel;
+    if (!_activity.allowsAutoDetectWatch) return _activity.statusLabel;
+    return null;
+  }
 
   /// Auto-detect can run if Pro (unlimited) or Free with remaining monthly trips.
   bool get canUseAutoDetect => isPremium || _usage.hasFreeAutoTripsRemaining;
@@ -89,6 +128,9 @@ class AppState extends ChangeNotifier {
     await _premium.load();
     await _usage.load();
     await _battery.load();
+    await _carBluetooth.load();
+    await _activity.load();
+    await _mapMatch.load();
     await _billing.initialize();
     await _tracker.restoreSession(batteryMode: _battery.mode);
     tracking = _tracker.isTracking;
@@ -206,6 +248,41 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setCarBluetoothGate(bool enabled) async {
+    await _carBluetooth.setGateEnabled(enabled);
+    if (enabled && !_carBluetooth.hasPermission) {
+      lastAutoDetectMessage =
+          'Bluetooth permission is required for the car Bluetooth gate.';
+    } else if (enabled && _carBluetooth.connected) {
+      lastAutoDetectMessage = 'Car Bluetooth connected — auto-detect can watch.';
+    } else if (enabled) {
+      lastAutoDetectMessage =
+          'Car Bluetooth gate on — GPS watching sleeps until the car connects.';
+    }
+    await _syncAutoDetectMonitoring();
+    notifyListeners();
+  }
+
+  Future<void> setActivityGate(bool enabled) async {
+    await _activity.setGateEnabled(enabled);
+    if (enabled && !_activity.hasPermission) {
+      lastAutoDetectMessage =
+          'Motion / activity permission is required for the vehicle gate.';
+    } else if (enabled && _activity.inVehicle) {
+      lastAutoDetectMessage = 'In vehicle — auto-detect can watch.';
+    } else if (enabled) {
+      lastAutoDetectMessage =
+          'Vehicle motion gate on — GPS watching sleeps until you drive.';
+    }
+    await _syncAutoDetectMonitoring();
+    notifyListeners();
+  }
+
+  void _onPowerGateChanged() {
+    // Car BT or activity flipped — start or stop idle GPS watch.
+    unawaited(_syncAutoDetectMonitoring());
+  }
+
   Future<String> purchasePremium() => _billing.purchasePremium();
 
   Future<String> restorePurchases() => _billing.restorePurchases();
@@ -237,7 +314,12 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _syncAutoDetectMonitoring() async {
-    final shouldWatch = _premium.autoDetectEnabled && canUseAutoDetect && !tracking;
+    final gateOk = powerGatesAllowWatch;
+    final shouldWatch = _premium.autoDetectEnabled &&
+        canUseAutoDetect &&
+        !tracking &&
+        gateOk;
+
     if (shouldWatch) {
       final permError = await _tracker.requestBackgroundPermission();
       if (permError != null) {
@@ -248,7 +330,10 @@ class AppState extends ChangeNotifier {
       }
       await _autoDetect.startMonitoring(mode: _battery.mode);
     } else {
-      await _autoDetect.stopMonitoring();
+      // Don't kill an in-progress auto trip if a gate drops mid-drive.
+      if (!tracking) {
+        await _autoDetect.stopMonitoring();
+      }
       if (_premium.autoDetectEnabled && !canUseAutoDetect && !isPremium) {
         lastAutoDetectMessage =
             'Free auto trips used up this month (${_usage.autoTripsThisMonth}/${_usage.freeLimit}). Upgrade for unlimited.';
@@ -258,7 +343,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _handleAutoTripStarted() async {
-    if (tracking || !connected) return;
+    if (tracking) return;
+
     if (!canUseAutoDetect) {
       lastAutoDetectMessage = 'Auto-detect paused — free monthly limit reached.';
       await _premium.setAutoDetect(false);
@@ -267,12 +353,29 @@ class AppState extends ChangeNotifier {
       return;
     }
 
-    lastAutoDetectMessage = 'Drive detected — starting trip';
+    if (!connected) {
+      lastAutoDetectMessage =
+          'Drive detected, but you\'re offline. Connect to save auto trips.';
+      // Stay ready to try again after cooldown.
+      _autoDetect.resumeAfterTrip();
+      notifyListeners();
+      return;
+    }
+
+    lastAutoDetectMessage = 'Drive confirmed — starting trip';
     notifyListeners();
+
+    // Stop idle watch; active trip GPS is owned by TripTracker.
     await _autoDetect.stopMonitoring();
     _autoDetect.pauseForActiveTrip();
     await startTracking(background: true, autoStarted: true);
-    lastAutoDetectMessage = null;
+
+    if (tracking) {
+      lastAutoDetectMessage = 'Auto trip in progress';
+    } else if (error != null) {
+      lastAutoDetectMessage = error;
+      await _syncAutoDetectMonitoring();
+    }
     notifyListeners();
   }
 
@@ -287,14 +390,19 @@ class AppState extends ChangeNotifier {
     );
     if (trip != null) {
       await _usage.recordAutoTrip();
-      lastAutoDetectMessage =
-          'Auto-saved ${trip.miles.toStringAsFixed(1)} mi · ${_usage.remainingFreeAutoTrips} free left this month';
+      final left = _usage.remainingFreeAutoTrips;
+      lastAutoDetectMessage = isPremium
+          ? 'Auto-saved ${trip.miles.toStringAsFixed(1)} mi'
+          : 'Auto-saved ${trip.miles.toStringAsFixed(1)} mi · $left free left this month';
       if (!isPremium && !_usage.hasFreeAutoTripsRemaining) {
+        lastAutoDetectMessage =
+            'Auto-saved ${trip.miles.toStringAsFixed(1)} mi · free limit reached';
         await _premium.setAutoDetect(false);
       }
     } else {
-      lastAutoDetectMessage =
-          'Trip too short to save (${milesSnapshot.toStringAsFixed(2)} mi)';
+      lastAutoDetectMessage = milesSnapshot < 0.25
+          ? 'Skipped short hop (${milesSnapshot.toStringAsFixed(2)} mi) — not saved'
+          : 'Trip too short to save (${milesSnapshot.toStringAsFixed(2)} mi)';
     }
     notifyListeners();
     await _syncAutoDetectMonitoring();
@@ -389,25 +497,32 @@ class AppState extends ChangeNotifier {
       await _syncAutoDetectMonitoring();
     }
 
-    if (result.miles < 0.1) return null;
+    // Auto-detect uses a higher floor so parking-lot noise doesn't create trips.
+    final minMiles = wasAuto ? 0.25 : 0.1;
+    if (result.miles < minMiles) return null;
 
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final resolvedSource = wasAuto ? 'autodetect' : source;
-    final sparse = result.sparseRoute();
+    final refined = await _mapMatch.refine(
+      points: result.route,
+      gpsMiles: result.miles,
+    );
     return saveTrip(
       date: today,
-      miles: result.miles,
+      miles: refined.miles,
       tips: tips,
       notes: notes,
-      source: resolvedSource,
+      source: wasAuto ? 'autodetect' : source,
       isBusiness: true,
       startLat: result.start?.lat,
       startLng: result.start?.lng,
       endLat: result.end?.lat,
       endLng: result.end?.lng,
-      route: sparse,
+      route: refined.route,
     );
   }
+
+  Future<void> setMapMatchEnabled(bool enabled) =>
+      _mapMatch.setEnabled(enabled);
 
   Future<Trip> saveTrip({
     int? id,
@@ -492,6 +607,12 @@ class AppState extends ChangeNotifier {
   void dispose() {
     _billing.dispose();
     _battery.removeListener(notifyListeners);
+    _carBluetooth.removeListener(_onPowerGateChanged);
+    _carBluetooth.dispose();
+    _activity.removeListener(_onPowerGateChanged);
+    _activity.dispose();
+    _mapMatch.removeListener(notifyListeners);
+    _autoDetect.removeListener(notifyListeners);
     _autoDetect.dispose();
     unawaited(_lockScreen.clear());
     _tracker.dispose();

@@ -27,4 +27,16 @@ class AppConfig {
   static String get appName => 'TrekTrack';
 
   static String get appTagline => 'Audit-ready mileage. Built for the road.';
+
+  /// OSRM Match base (no trailing path). Override for self-hosted routing.
+  static const osrmBaseUrlOverride = String.fromEnvironment('OSRM_BASE_URL');
+
+  static String get osrmBaseUrl => osrmBaseUrlOverride.isNotEmpty
+      ? osrmBaseUrlOverride
+      : 'https://router.project-osrm.org';
+
+  /// Max GPS samples sent to map-match (URL length + demo server limits).
+  static const mapMatchMaxPoints = 80;
+
+  static const mapMatchTimeout = Duration(seconds: 12);
 }

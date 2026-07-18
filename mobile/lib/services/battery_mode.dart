@@ -62,15 +62,24 @@ extension BatteryModeX on BatteryMode {
           ),
       };
 
+  /// How long speed must stay high before starting a trip.
   int get startConfirmSeconds => switch (this) {
-        BatteryMode.batterySaver => 40,
-        BatteryMode.balanced => 30,
-        BatteryMode.accuracy => 20,
+        BatteryMode.batterySaver => 35,
+        BatteryMode.balanced => 25,
+        BatteryMode.accuracy => 18,
       };
 
+  /// How long speed must stay low (and little displacement) before ending.
   int get stopConfirmSeconds => switch (this) {
-        BatteryMode.batterySaver => 240,
-        BatteryMode.balanced => 180,
-        BatteryMode.accuracy => 120,
+        BatteryMode.batterySaver => 210,
+        BatteryMode.balanced => 150,
+        BatteryMode.accuracy => 100,
+      };
+
+  /// Android idle poll interval while watching for a drive.
+  int get idleIntervalSeconds => switch (this) {
+        BatteryMode.batterySaver => 20,
+        BatteryMode.balanced => 12,
+        BatteryMode.accuracy => 8,
       };
 }

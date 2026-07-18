@@ -20,6 +20,20 @@ class GeoPoint {
     throw FormatException('Invalid GeoPoint: $raw');
   }
 
+  /// Downsample a path (keeps endpoints + evenly spaced midpoints).
+  static List<GeoPoint> sparsify(List<GeoPoint> route, {int maxPoints = 40}) {
+    if (route.length <= maxPoints) return List.unmodifiable(route);
+    if (maxPoints < 2) return [route.first, route.last];
+
+    final out = <GeoPoint>[route.first];
+    final step = (route.length - 1) / (maxPoints - 1);
+    for (var i = 1; i < maxPoints - 1; i++) {
+      out.add(route[(i * step).round()]);
+    }
+    out.add(route.last);
+    return out;
+  }
+
   @override
   String toString() => 'GeoPoint($lat, $lng)';
 }
@@ -34,17 +48,6 @@ class TripTrackResult {
   GeoPoint? get start => route.isEmpty ? null : route.first;
   GeoPoint? get end => route.isEmpty ? null : route.last;
 
-  /// Downsample for storage / map (keeps endpoints + evenly spaced midpoints).
-  List<GeoPoint> sparseRoute({int maxPoints = 40}) {
-    if (route.length <= maxPoints) return List.unmodifiable(route);
-    if (maxPoints < 2) return [route.first, route.last];
-
-    final out = <GeoPoint>[route.first];
-    final step = (route.length - 1) / (maxPoints - 1);
-    for (var i = 1; i < maxPoints - 1; i++) {
-      out.add(route[(i * step).round()]);
-    }
-    out.add(route.last);
-    return out;
-  }
+  List<GeoPoint> sparseRoute({int maxPoints = 40}) =>
+      GeoPoint.sparsify(route, maxPoints: maxPoints);
 }
