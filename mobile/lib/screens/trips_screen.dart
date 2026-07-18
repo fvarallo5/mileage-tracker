@@ -9,6 +9,7 @@ import '../widgets/app_bottom_sheet.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/section_header.dart';
 import '../widgets/trip_tile.dart';
+import '../widgets/trips_map.dart';
 import 'import_screen.dart';
 
 class TripsScreen extends StatelessWidget {
@@ -48,6 +49,12 @@ class TripsScreen extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: AppSpacing.lg),
+              SectionHeader(
+                title: 'Trip map',
+                subtitle: 'GPS routes from logged trips',
+              ),
+              TripsMap(trips: state.trips),
               const SizedBox(height: AppSpacing.lg),
               SectionHeader(
                 title: 'Recent Trips',

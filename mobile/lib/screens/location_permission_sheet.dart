@@ -35,26 +35,34 @@ class _LocationPermissionSheet extends StatelessWidget {
       title: isAutoDetect ? 'Auto-detect needs background location' : 'Background tracking needs location access',
       subtitle: 'We only use your location for mileage logging — never for ads or resale.',
       children: [
-        Container(
-          padding: const EdgeInsets.all(AppSpacing.card),
-          decoration: BoxDecoration(
-            color: AppColors.surface2,
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            children: [
-              const Icon(Icons.shield_outlined, color: AppColors.accent, size: 36),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                isAutoDetect
-                    ? 'Auto-detect watches for driving and logs trips hands-free.'
-                    : 'Premium keeps GPS running while you use Uber, DoorDash, or Maps.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.4),
+        Builder(
+          builder: (ctx) {
+            final p = ThemePalette.of(ctx);
+            return Container(
+              padding: const EdgeInsets.all(AppSpacing.card),
+              decoration: BoxDecoration(
+                color: p.surface3,
+                borderRadius: BorderRadius.circular(AppRadii.md),
+                border: Border.all(color: p.border),
               ),
-            ],
-          ),
+              child: Column(
+                children: [
+                  const Icon(Icons.shield_outlined, color: AppColors.accent, size: 36),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    isAutoDetect
+                        ? 'Auto-detect watches for driving and logs trips hands-free.'
+                        : 'Pro keeps GPS running while you use Uber, DoorDash, or Maps.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          height: 1.4,
+                          color: p.textMuted,
+                        ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
         const SizedBox(height: AppSpacing.lg),
         const _ExplainerRow(
@@ -138,7 +146,14 @@ class _ExplainerRow extends StatelessWidget {
         Icon(icon, color: AppColors.accent, size: 20),
         const SizedBox(width: AppSpacing.md),
         Expanded(
-          child: Text(text, style: const TextStyle(fontSize: 13, height: 1.4, color: AppColors.text)),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: ThemePalette.of(context).text,
+            ),
+          ),
         ),
       ],
     );

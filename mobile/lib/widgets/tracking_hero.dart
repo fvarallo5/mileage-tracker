@@ -37,6 +37,7 @@ class _TrackingHeroState extends State<TrackingHero> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final tracking = widget.state.tracking;
 
     return Container(
@@ -45,12 +46,15 @@ class _TrackingHeroState extends State<TrackingHero> with SingleTickerProviderSt
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: tracking
-              ? [AppColors.greenDark.withValues(alpha: 0.4), AppColors.surface]
-              : [AppColors.surface2, AppColors.surface],
+              ? [
+                  AppColors.green.withValues(alpha: p.isLight ? 0.12 : 0.25),
+                  p.surface,
+                ]
+              : [p.surface, p.surface],
         ),
         borderRadius: BorderRadius.circular(AppRadii.xl),
         border: Border.all(
-          color: tracking ? AppColors.green.withValues(alpha: 0.4) : AppColors.border,
+          color: tracking ? AppColors.green.withValues(alpha: 0.4) : p.border,
         ),
       ),
       child: Padding(
@@ -87,13 +91,13 @@ class _TrackingHeroState extends State<TrackingHero> with SingleTickerProviderSt
                     height: 100,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.surface3,
-                      border: Border.all(color: AppColors.border),
+                      color: p.surface3,
+                      border: Border.all(color: p.border),
                     ),
                     child: Icon(
                       tracking ? Icons.gps_fixed : Icons.gps_not_fixed,
                       size: 40,
-                      color: tracking ? AppColors.green : AppColors.textMuted,
+                      color: tracking ? AppColors.green : p.textMuted,
                     ),
                   ),
                 ],
@@ -109,8 +113,10 @@ class _TrackingHeroState extends State<TrackingHero> with SingleTickerProviderSt
                     runSpacing: 6,
                     alignment: WrapAlignment.center,
                     children: [
-                      if (widget.state.trackingIsAuto) _TrackingBadge(label: 'Auto-detect', color: AppColors.amber),
-                      if (widget.state.trackingInBackground) _TrackingBadge(label: 'Background', color: AppColors.accent),
+                      if (widget.state.trackingIsAuto)
+                        const _TrackingBadge(label: 'Auto-detect', color: AppColors.amber),
+                      if (widget.state.trackingInBackground)
+                        const _TrackingBadge(label: 'Background', color: AppColors.accent),
                     ],
                   ),
                 ),
@@ -125,7 +131,10 @@ class _TrackingHeroState extends State<TrackingHero> with SingleTickerProviderSt
                 ),
               ),
               const SizedBox(height: 4),
-              Text('miles driven', style: Theme.of(context).textTheme.bodyMedium),
+              Text(
+                'miles driven',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: p.textMuted),
+              ),
               const SizedBox(height: AppSpacing.lg),
               FilledButton.icon(
                 onPressed: widget.onStop,
@@ -139,13 +148,13 @@ class _TrackingHeroState extends State<TrackingHero> with SingleTickerProviderSt
             ] else ...[
               Text(
                 'Ready to drive',
-                style: Theme.of(context).textTheme.titleMedium,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(color: p.text),
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 'GPS tracks your mileage automatically.\nAdd tips when you finish.',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: p.textMuted),
               ),
               const SizedBox(height: AppSpacing.lg),
               FilledButton.icon(

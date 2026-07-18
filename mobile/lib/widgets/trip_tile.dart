@@ -26,18 +26,20 @@ class TripTile extends StatelessWidget {
         'lyft' => Icons.directions_car,
         'instacart' => Icons.shopping_bag,
         'gps' => Icons.gps_fixed,
+        'autodetect' => Icons.radar_rounded,
         _ => Icons.edit_road,
       };
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final parsedDate = DateTime.tryParse(trip.date);
     final iconColor = AppColors.sourceColor(trip.source);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Material(
-        color: AppColors.surface,
+        color: p.surface,
         borderRadius: BorderRadius.circular(AppRadii.lg),
         child: InkWell(
           onTap: onTap,
@@ -47,7 +49,7 @@ class TripTile extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpacing.card),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadii.lg),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: p.border),
             ),
             child: Row(
               children: [
@@ -58,7 +60,11 @@ class TripTile extends StatelessWidget {
                     color: iconColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(AppRadii.md),
                   ),
-                  child: Icon(_sourceIcon(), color: iconColor == AppColors.surface3 ? AppColors.accent : iconColor, size: 22),
+                  child: Icon(
+                    _sourceIcon(),
+                    color: iconColor == AppColors.surface3 ? AppColors.accent : iconColor,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
@@ -70,7 +76,10 @@ class TripTile extends StatelessWidget {
                           Expanded(
                             child: Text(
                               parsedDate != null ? _dateFmt.format(parsedDate) : trip.date,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15),
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontSize: 15,
+                                    color: p.text,
+                                  ),
                             ),
                           ),
                           SourceBadge(source: trip.source),
@@ -78,10 +87,15 @@ class TripTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        trip.notes.isEmpty ? 'No notes' : trip.notes,
+                        trip.notes.isEmpty
+                            ? (trip.hasMapGeometry ? 'Route on map' : 'No notes')
+                            : trip.notes,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 13),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontSize: 13,
+                              color: p.textMuted,
+                            ),
                       ),
                     ],
                   ),
@@ -92,11 +106,19 @@ class TripTile extends StatelessWidget {
                   children: [
                     Text(
                       '${trip.miles.toStringAsFixed(1)} mi',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: p.text,
+                      ),
                     ),
                     Text(
                       _currency.format(trip.tips),
-                      style: const TextStyle(color: AppColors.green, fontSize: 13, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        color: AppColors.green,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),

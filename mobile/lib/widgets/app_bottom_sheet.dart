@@ -16,46 +16,75 @@ class AppBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.page,
-        right: AppSpacing.page,
-        top: 12,
-        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.page,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
+    final p = context.palette;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    // Scrollable body prevents yellow/black overflow stripes on long sheets.
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: AppSpacing.page,
+          right: AppSpacing.page,
+          top: 12,
+          bottom: bottomInset + AppSpacing.md,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: p.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
-            ),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(color: p.text),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle!,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: p.textMuted),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              Flexible(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: children,
+                  ),
+                ),
+              ),
+            ],
           ),
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
-            Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium),
-          ],
-          const SizedBox(height: AppSpacing.lg),
-          ...children,
-        ],
+        ),
       ),
     );
   }
 }
 
 Future<T?> showAppBottomSheet<T>(BuildContext context, Widget child) {
+  final p = ThemePalette.of(context);
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.surface,
+    useSafeArea: true,
+    backgroundColor: p.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
+    ),
     builder: (_) => child,
   );
 }

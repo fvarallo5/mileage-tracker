@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:geolocator/geolocator.dart';
 
-/// Speed-based driving detection for premium auto-trip logging.
+import 'battery_mode.dart';
+
+/// Speed-based driving detection with battery-mode-aware sampling.
 class AutoDetectService {
   AutoDetectService({
     required this.onTripStarted,
@@ -14,29 +16,41 @@ class AutoDetectService {
 
   static const startSpeedMps = 4.0; // ~9 mph
   static const stopSpeedMps = 1.5; // ~3.4 mph
-  static const startConfirmSeconds = 30;
-  static const stopConfirmSeconds = 180;
 
   StreamSubscription<Position>? _subscription;
   bool _monitoring = false;
   bool _tripActive = false;
   DateTime? _drivingSince;
   DateTime? _stoppedSince;
+  BatteryMode _mode = BatteryMode.batterySaver;
 
   bool get isMonitoring => _monitoring;
+  BatteryMode get mode => _mode;
 
-  Future<void> startMonitoring() async {
-    if (_monitoring) return;
+  Future<void> startMonitoring({BatteryMode mode = BatteryMode.batterySaver}) async {
+    _mode = mode;
+    if (_monitoring) {
+      await _restartStream();
+      return;
+    }
     _monitoring = true;
     _tripActive = false;
     _drivingSince = null;
     _stoppedSince = null;
+    await _restartStream();
+  }
 
+  Future<void> applyMode(BatteryMode mode) async {
+    _mode = mode;
+    if (_monitoring && !_tripActive) {
+      await _restartStream();
+    }
+  }
+
+  Future<void> _restartStream() async {
+    await _subscription?.cancel();
     _subscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.medium,
-        distanceFilter: 30,
-      ),
+      locationSettings: _mode.idleLocationSettings,
     ).listen(_onPosition, onError: (_) {});
   }
 
@@ -71,7 +85,7 @@ class AutoDetectService {
       _stoppedSince = null;
       _drivingSince ??= now;
       final elapsed = now.difference(_drivingSince!).inSeconds;
-      if (elapsed >= startConfirmSeconds) {
+      if (elapsed >= _mode.startConfirmSeconds) {
         _tripActive = true;
         _drivingSince = null;
         onTripStarted();
@@ -98,7 +112,7 @@ class AutoDetectService {
     if (speed <= stopSpeedMps) {
       _stoppedSince ??= now;
       final elapsed = now.difference(_stoppedSince!).inSeconds;
-      if (elapsed >= stopConfirmSeconds) {
+      if (elapsed >= _mode.stopConfirmSeconds) {
         _stoppedSince = null;
         onTripEnded();
       }

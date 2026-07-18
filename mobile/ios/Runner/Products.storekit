@@ -84,7 +84,7 @@
           "localizations" : [
             {
               "description" : "Background GPS and automatic trip detection.",
-              "displayName" : "Mileage Tracker Premium",
+              "displayName" : "TrekTrack Pro",
               "locale" : "en_US"
             }
           ],

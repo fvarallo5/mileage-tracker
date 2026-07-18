@@ -1,32 +1,111 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
+import 'config/app_config.dart';
+import 'config/supabase_config.dart';
 import 'providers/app_state.dart';
+import 'providers/auth_state.dart';
+import 'screens/auth_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_sheet.dart';
 import 'screens/track_screen.dart';
 import 'screens/trips_screen.dart';
-import 'services/api_service.dart';
+import 'services/auth_service.dart';
+import 'services/supabase_service.dart';
+import 'services/theme_service.dart';
 import 'services/voice_command_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/summary_strip.dart';
 
-void main() {
-  runApp(const MileageTrackerApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (SupabaseConfig.isConfigured) {
+    await Supabase.initialize(
+      url: SupabaseConfig.url,
+      publishableKey: SupabaseConfig.anonKey,
+    );
+  }
+
+  final themeService = ThemeService();
+  await themeService.load();
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthState(AuthService())..init()),
+        ChangeNotifierProvider.value(value: themeService),
+      ],
+      child: const TrekTrackApp(),
+    ),
+  );
 }
 
-class MileageTrackerApp extends StatelessWidget {
-  const MileageTrackerApp({super.key});
+/// App root. [MileageTrackerApp] kept as alias for existing tests.
+class TrekTrackApp extends StatelessWidget {
+  const TrekTrackApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = context.watch<ThemeService>().mode;
+
+    return MaterialApp(
+      title: AppConfig.appName,
+      theme: buildLightAppTheme(),
+      darkTheme: buildDarkAppTheme(),
+      themeMode: themeMode,
+      debugShowCheckedModeBanner: false,
+      home: const _AuthGate(),
+    );
+  }
+}
+
+@Deprecated('Use TrekTrackApp')
+typedef MileageTrackerApp = TrekTrackApp;
+
+class _AuthGate extends StatelessWidget {
+  const _AuthGate();
+
+  @override
+  Widget build(BuildContext context) {
+    if (!SupabaseConfig.isConfigured) {
+      return const _ConfigErrorScreen();
+    }
+
+    final auth = context.watch<AuthState>();
+    if (auth.loading) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (!auth.isSignedIn) {
+      return const AuthScreen();
+    }
     return ChangeNotifierProvider(
-      create: (_) => AppState(ApiService())..initialize(),
-      child: MaterialApp(
-        title: 'Mileage Tracker',
-        theme: buildAppTheme(),
-        home: const HomeShell(),
-        debugShowCheckedModeBanner: false,
+      key: ValueKey(auth.userId),
+      create: (_) => AppState(SupabaseService())..initialize(),
+      child: const HomeShell(),
+    );
+  }
+}
+
+class _ConfigErrorScreen extends StatelessWidget {
+  const _ConfigErrorScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Supabase not configured.\nRebuild with SUPABASE_URL and SUPABASE_ANON_KEY.',
+            textAlign: TextAlign.center,
+          ),
+        ),
       ),
     );
   }
@@ -42,6 +121,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   VoiceCommandService? _voiceCommands;
+  AppState? _appState;
 
   static const _screens = [
     TrackScreen(),
@@ -59,12 +139,16 @@ class _HomeShellState extends State<HomeShell> {
 
   Future<void> _setupVoiceCommands() async {
     final state = context.read<AppState>();
+    _appState = state;
     _voiceCommands = VoiceCommandService(
       onStartTrip: state.startTrackingFromVoice,
       onStopTrip: state.stopTrackingFromVoice,
     );
     _voiceCommands!.lastMessage.addListener(_onVoiceMessage);
     await _voiceCommands!.initialize();
+
+    // Lock-screen notification actions surface the same feedback as voice.
+    state.lockScreen.lastMessage.addListener(_onLockScreenMessage);
   }
 
   void _onVoiceMessage() {
@@ -75,24 +159,41 @@ class _HomeShellState extends State<HomeShell> {
     _voiceCommands?.lastMessage.value = null;
   }
 
+  void _onLockScreenMessage() {
+    final message = _appState?.lockScreen.lastMessage.value;
+    if (message == null || !mounted) return;
+    setState(() => _index = 0);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    _appState?.lockScreen.lastMessage.value = null;
+  }
+
   @override
   void dispose() {
     _voiceCommands?.lastMessage.removeListener(_onVoiceMessage);
+    _appState?.lockScreen.lastMessage.removeListener(_onLockScreenMessage);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Consumer<AppState>(
       builder: (context, state, _) {
         return Scaffold(
-          backgroundColor: AppColors.bg,
+          backgroundColor: theme.scaffoldBackgroundColor,
           body: SafeArea(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.page, AppSpacing.md, AppSpacing.page, 0),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.page,
+                    AppSpacing.md,
+                    AppSpacing.page,
+                    0,
+                  ),
                   child: Row(
                     children: [
                       Container(
@@ -111,10 +212,13 @@ class _HomeShellState extends State<HomeShell> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Mileage Tracker', style: Theme.of(context).textTheme.titleLarge),
+                            Text(
+                              AppConfig.appName,
+                              style: theme.textTheme.titleLarge,
+                            ),
                             Text(
                               _labels[_index],
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 13),
+                              style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13),
                             ),
                           ],
                         ),
@@ -126,8 +230,8 @@ class _HomeShellState extends State<HomeShell> {
                         onPressed: () => showSettingsSheet(context),
                         icon: const Icon(Icons.tune_rounded),
                         style: IconButton.styleFrom(
-                          backgroundColor: AppColors.surface,
-                          side: const BorderSide(color: AppColors.border),
+                          backgroundColor: scheme.surface,
+                          side: BorderSide(color: scheme.outline),
                         ),
                       ),
                     ],
@@ -149,8 +253,8 @@ class _HomeShellState extends State<HomeShell> {
             ),
           ),
           bottomNavigationBar: Container(
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.border)),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: scheme.outline)),
             ),
             child: NavigationBar(
               selectedIndex: _index,

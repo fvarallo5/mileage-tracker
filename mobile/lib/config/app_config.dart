@@ -1,19 +1,16 @@
 import 'package:flutter/foundation.dart';
 
-/// App-wide constants for dev vs App Store release builds.
-class AppConfig {
-  /// Set at build time: --dart-define=API_URL=https://your-api.com/api
-  static const apiUrlOverride = String.fromEnvironment('API_URL');
+import 'supabase_config.dart';
 
-  /// Set at build time: --dart-define=PRIVACY_URL=https://your-api.com/privacy
+/// App-wide constants for TrekTrack.
+class AppConfig {
   static const privacyUrlOverride = String.fromEnvironment('PRIVACY_URL');
 
-  /// Default production API — update after deploying to Render/Railway.
-  static const productionApiUrl = 'https://mileage-tracker-api.onrender.com/api';
-
-  /// Default privacy policy URL (served by backend).
   static const productionPrivacyUrl =
-      'https://mileage-tracker-api.onrender.com/privacy';
+      'https://raw.githubusercontent.com/fvarallo5/mileage-tracker/main/static/privacy.html';
+
+  /// Free tier: auto-detect trips allowed per calendar month.
+  static const freeAutoTripsPerMonth = 30;
 
   static bool get isRelease => kReleaseMode;
 
@@ -22,7 +19,11 @@ class AppConfig {
   static String get privacyPolicyUrl =>
       privacyUrlOverride.isNotEmpty ? privacyUrlOverride : productionPrivacyUrl;
 
-  static String get supportEmail => 'support@mileagetracker.app';
+  static String get supabaseUrl => SupabaseConfig.url;
 
-  static String get appName => 'Mileage Tracker';
+  static String get supportEmail => 'support@trektrack.app';
+
+  static String get appName => 'TrekTrack';
+
+  static String get appTagline => 'Audit-ready mileage. Built for the road.';
 }

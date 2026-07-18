@@ -1,0 +1,20 @@
+# Supabase local dev config (optional — use `supabase start` with CLI)
+# Production project: https://gfpyqkbhszczuzaoldly.supabase.co
+
+project_id = "mileage-tracker"
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+
+[auth]
+enabled = true
+enable_anonymous_sign_ins = true
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false

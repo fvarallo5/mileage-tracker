@@ -73,17 +73,24 @@ class _MiniStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: p.surface,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: p.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(), style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 9)),
+          Text(
+            label.toUpperCase(),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontSize: 9,
+                  color: p.textMuted,
+                ),
+          ),
           const SizedBox(height: 4),
           Text(
             value,
@@ -91,7 +98,13 @@ class _MiniStat extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: color),
           ),
-          Text(sub, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11)),
+          Text(
+            sub,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontSize: 11,
+                  color: p.textMuted,
+                ),
+          ),
         ],
       ),
     );

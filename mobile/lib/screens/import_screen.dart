@@ -57,20 +57,23 @@ class _ImportScreenState extends State<ImportScreen> {
   double get _defaultMiles => double.tryParse(_defaultMilesController.text) ?? 0;
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['csv', 'txt'],
-      withData: true,
     );
-    if (result == null || result.files.isEmpty) return;
+    if (file == null) return;
 
-    final file = result.files.first;
-    if (file.bytes != null) {
+    try {
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
       setState(() {
-        _csvController.text = String.fromCharCodes(file.bytes!);
+        _csvController.text = String.fromCharCodes(bytes);
         _preview = null;
         _error = null;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Could not read file: $e');
     }
   }
 
@@ -145,7 +148,7 @@ class _ImportScreenState extends State<ImportScreen> {
     final instructions = _formats?.instructions[_platform] as Map<String, dynamic>?;
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Import Trips'),
         leading: IconButton(

@@ -1,0 +1,246 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../data/import_formats.dart';
+import '../models/import_result.dart';
+import '../models/period_report.dart';
+import '../models/trip.dart';
+import 'csv_importer.dart';
+import 'report_service.dart';
+
+class ApiException implements Exception {
+  final String message;
+  ApiException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+/// Supabase-backed data layer — replaces the Express API.
+class SupabaseService {
+  SupabaseClient get _client => Supabase.instance.client;
+
+  Future<void> initialize() async {}
+
+  Future<bool> healthCheck() async {
+    try {
+      if (_client.auth.currentSession == null) return false;
+      await _client.from('settings').select('mileage_rate').limit(1).maybeSingle();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String? get _userId => _client.auth.currentUser?.id;
+
+  Future<List<Trip>> getTrips({int? limit}) async {
+    var query = _client
+        .from('trips')
+        .select()
+        .order('date', ascending: false)
+        .order('id', ascending: false);
+
+    if (limit != null) {
+      query = query.limit(limit);
+    }
+
+    final rows = await query;
+    return (rows as List).map((e) => _tripFromRow(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<Trip> createTrip({
+    required String date,
+    required double miles,
+    double tips = 0,
+    String notes = '',
+    String source = 'manual',
+    double? startLat,
+    double? startLng,
+    double? endLat,
+    double? endLng,
+    List<List<double>> route = const [],
+  }) async {
+    final userId = _userId;
+    if (userId == null) throw ApiException('Not signed in');
+
+    final payload = <String, dynamic>{
+      'user_id': userId,
+      'date': date,
+      'miles': miles,
+      'tips': tips,
+      'notes': notes,
+      'source': source,
+    };
+    if (startLat != null) payload['start_lat'] = startLat;
+    if (startLng != null) payload['start_lng'] = startLng;
+    if (endLat != null) payload['end_lat'] = endLat;
+    if (endLng != null) payload['end_lng'] = endLng;
+    if (route.isNotEmpty) payload['route'] = route;
+
+    try {
+      final row = await _client.from('trips').insert(payload).select().single();
+      return _tripFromRow(row);
+    } catch (_) {
+      // Route columns may not be migrated yet — fall back to core fields.
+      if (route.isEmpty && startLat == null) rethrow;
+      final row = await _client.from('trips').insert({
+        'user_id': userId,
+        'date': date,
+        'miles': miles,
+        'tips': tips,
+        'notes': notes,
+        'source': source,
+      }).select().single();
+      return _tripFromRow(row);
+    }
+  }
+
+  Future<Trip> updateTrip(
+    int id, {
+    required String date,
+    required double miles,
+    double tips = 0,
+    String notes = '',
+  }) async {
+    final row = await _client.from('trips').update({
+      'date': date,
+      'miles': miles,
+      'tips': tips,
+      'notes': notes,
+    }).eq('id', id).select().single();
+
+    return _tripFromRow(row);
+  }
+
+  Future<void> deleteTrip(int id) async {
+    await _client.from('trips').delete().eq('id', id);
+  }
+
+  Future<ReportSummary> getReportSummary() async {
+    final trips = await getTrips();
+    return ReportService.buildSummary(trips);
+  }
+
+  Future<List<PeriodReport>> getReports(String period, {int count = 8}) async {
+    final trips = await getTrips();
+    return ReportService.buildHistory(trips, period, count: count);
+  }
+
+  Future<double> getMileageRate() async {
+    final userId = _userId;
+    if (userId == null) throw ApiException('Not signed in');
+
+    final row = await _client
+        .from('settings')
+        .select('mileage_rate')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (row == null) return 0.70;
+    return (row['mileage_rate'] as num).toDouble();
+  }
+
+  Future<double> setMileageRate(double rate) async {
+    final userId = _userId;
+    if (userId == null) throw ApiException('Not signed in');
+
+    final row = await _client.from('settings').upsert({
+      'user_id': userId,
+      'mileage_rate': rate,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).select('mileage_rate').single();
+
+    return (row['mileage_rate'] as num).toDouble();
+  }
+
+  Future<ImportFormats> getImportFormats() async {
+    return ImportFormatsData.formats;
+  }
+
+  Future<ImportResult> previewImport({
+    required String csv,
+    required String platform,
+    double defaultMiles = 0,
+  }) async {
+    final result = CsvImporter.parseTripCsv(csv, platform: platform, defaultMiles: defaultMiles);
+    return ImportResult(
+      platform: result.platform,
+      importedCount: result.trips.length,
+      skippedCount: 0,
+      errorCount: result.errors.length,
+      preview: result.trips.map(ImportPreviewRow.fromJson).toList(),
+      errors: result.errors
+          .map((e) => 'Line ${e['line']}: ${e['error']}')
+          .toList(),
+    );
+  }
+
+  Future<ImportResult> importTrips({
+    required String csv,
+    required String platform,
+    double defaultMiles = 0,
+  }) async {
+    final userId = _userId;
+    if (userId == null) throw ApiException('Not signed in');
+
+    final parsed = CsvImporter.parseTripCsv(csv, platform: platform, defaultMiles: defaultMiles);
+    final existing = await getTrips();
+    var importedCount = 0;
+    var skippedCount = 0;
+
+    for (final trip in parsed.trips) {
+      final miles = (trip['miles'] as num).toDouble();
+      final tips = (trip['tips'] as num).toDouble();
+      final date = trip['date'] as String;
+      final source = trip['source'] as String;
+
+      final isDuplicate = existing.any((t) =>
+          t.date == date &&
+          t.source == source &&
+          (t.miles - miles).abs() < 0.05 &&
+          (t.tips - tips).abs() < 0.01);
+
+      if (isDuplicate) {
+        skippedCount++;
+        continue;
+      }
+
+      await _client.from('trips').insert({
+        'user_id': userId,
+        'date': date,
+        'miles': miles,
+        'tips': tips,
+        'notes': trip['notes'],
+        'source': source,
+      });
+      importedCount++;
+    }
+
+    return ImportResult(
+      platform: parsed.platform,
+      importedCount: importedCount,
+      skippedCount: skippedCount,
+      errorCount: parsed.errors.length,
+      errors: parsed.errors
+          .map((e) => 'Line ${e['line']}: ${e['error']}')
+          .toList(),
+    );
+  }
+
+  Trip _tripFromRow(Map<String, dynamic> row) {
+    return Trip.fromJson({
+      'id': (row['id'] as num).toInt(),
+      'date': row['date'] as String,
+      'miles': row['miles'],
+      'tips': row['tips'],
+      'notes': row['notes'],
+      'source': row['source'],
+      'created_at': row['created_at'],
+      'start_lat': row['start_lat'],
+      'start_lng': row['start_lng'],
+      'end_lat': row['end_lat'],
+      'end_lng': row['end_lng'],
+      'route': row['route'],
+    });
+  }
+}

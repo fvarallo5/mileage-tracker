@@ -95,22 +95,32 @@ class TrackScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(AppSpacing.card),
-              decoration: BoxDecoration(
-                color: AppColors.surface2,
-                borderRadius: BorderRadius.circular(AppRadii.md),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    state.liveMiles.toStringAsFixed(2),
-                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.accent),
+            Builder(
+              builder: (ctx) {
+                final p = ThemePalette.of(ctx);
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppSpacing.card),
+                  decoration: BoxDecoration(
+                    color: p.surface3,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    border: Border.all(color: p.border),
                   ),
-                  const Text('miles', style: TextStyle(color: AppColors.textMuted)),
-                ],
-              ),
+                  child: Column(
+                    children: [
+                      Text(
+                        state.liveMiles.toStringAsFixed(2),
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                      Text('miles', style: TextStyle(color: p.textMuted)),
+                    ],
+                  ),
+                );
+              },
             ),
             const SizedBox(height: AppSpacing.md),
             TextField(

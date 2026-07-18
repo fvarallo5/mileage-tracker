@@ -24,7 +24,8 @@ class StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = valueColor ?? AppColors.text;
+    final p = context.palette;
+    final accent = valueColor ?? p.text;
     final isFeatured = emphasis == StatEmphasis.featured;
     final isMuted = emphasis == StatEmphasis.muted;
 
@@ -32,13 +33,13 @@ class StatCard extends StatelessWidget {
       padding: EdgeInsets.all(isFeatured ? 18 : isMuted ? 10 : AppSpacing.card),
       decoration: BoxDecoration(
         color: isFeatured
-            ? accent.withValues(alpha: 0.08)
+            ? accent.withValues(alpha: p.isLight ? 0.06 : 0.08)
             : isMuted
-                ? AppColors.surface.withValues(alpha: 0.6)
-                : AppColors.surface2,
+                ? p.surface3
+                : p.surface,
         borderRadius: BorderRadius.circular(isFeatured ? AppRadii.lg : AppRadii.md),
         border: Border.all(
-          color: isFeatured ? accent.withValues(alpha: 0.45) : AppColors.border,
+          color: isFeatured ? accent.withValues(alpha: 0.45) : p.border,
           width: isFeatured ? 1.5 : 1,
         ),
       ),
@@ -60,7 +61,7 @@ class StatCard extends StatelessWidget {
                   label.toUpperCase(),
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         fontSize: isFeatured ? 11 : isMuted ? 9 : 10,
-                        color: isMuted ? AppColors.textMuted.withValues(alpha: 0.7) : null,
+                        color: isMuted ? p.textMuted.withValues(alpha: 0.7) : p.textMuted,
                       ),
                 ),
               ),
@@ -73,7 +74,7 @@ class StatCard extends StatelessWidget {
               fontSize: isFeatured ? 28 : isMuted ? 15 : 20,
               fontWeight: isFeatured ? FontWeight.w800 : FontWeight.w700,
               letterSpacing: isFeatured ? -0.8 : -0.3,
-              color: isMuted ? AppColors.textMuted : accent,
+              color: isMuted ? p.textMuted : accent,
             ),
           ),
           if (subtitle case final sub?) ...[
@@ -82,7 +83,7 @@ class StatCard extends StatelessWidget {
               sub,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontSize: isMuted ? 10 : 11,
-                    color: AppColors.textMuted,
+                    color: p.textMuted,
                   ),
             ),
           ],

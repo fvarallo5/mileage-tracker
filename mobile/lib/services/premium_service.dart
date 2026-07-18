@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Pro unlocks unlimited auto-detect trips + background-priority tracking.
+/// Free tier includes auto-detect with a monthly trip limit.
 class PremiumService {
   static const _premiumKey = 'premium_active';
   static const _autoDetectKey = 'autodetect_enabled';
@@ -41,18 +43,17 @@ class PremiumService {
 
   Future<void> deactivatePremium() async {
     isPremium = false;
-    autoDetectEnabled = false;
     premiumFromBilling = false;
     purchaseId = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_premiumKey, false);
-    await prefs.setBool(_autoDetectKey, false);
     await prefs.setBool(_billingKey, false);
     await prefs.remove(_purchaseIdKey);
+    // Keep autoDetectEnabled preference for free tier
   }
 
+  /// Auto-detect is available on Free and Pro (not gated by premium).
   Future<bool> setAutoDetect(bool enabled) async {
-    if (!isPremium) return false;
     autoDetectEnabled = enabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_autoDetectKey, enabled);

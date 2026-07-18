@@ -5,11 +5,21 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/app_config.dart';
+import '../models/geo_point.dart';
+import 'battery_mode.dart';
+
 class TripTracker {
   static const _activeKey = 'tracking_active';
   static const _milesKey = 'tracking_miles';
   static const _backgroundKey = 'tracking_background';
   static const _autoKey = 'tracking_auto';
+
+  /// Reject GPS fixes worse than this (meters) — cuts noise without more samples.
+  static const _maxAccuracyMeters = 45.0;
+
+  /// Reject jumps that imply > ~120 mph (teleport / multipath glitches).
+  static const _maxSpeedMps = 53.0;
 
   StreamSubscription<Position>? _subscription;
   final List<Position> _positions = [];
@@ -53,7 +63,7 @@ class TripTracker {
       if (status.isDenied) {
         final result = await Permission.locationAlways.request();
         if (!result.isGranted) {
-          return 'Background location is required for Premium tracking. Enable "Allow all the time" in Settings.';
+          return 'Background location is required for auto-detect and Pro tracking. Enable "Allow all the time" in Settings.';
         }
       }
       if (status.isPermanentlyDenied) {
@@ -64,7 +74,7 @@ class TripTracker {
     if (Platform.isIOS) {
       final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.whileInUse) {
-        return 'Background tracking requires "Always" location access. Enable it in Settings → Mileage Tracker → Location → Always.';
+        return 'Background tracking requires "Always" location access. Enable it in Settings → ${AppConfig.appName} → Location → Always.';
       }
       if (permission != LocationPermission.always) {
         return 'Location permission is required for background tracking.';
@@ -74,7 +84,9 @@ class TripTracker {
     return null;
   }
 
-  Future<void> restoreSession() async {
+  BatteryMode _batteryMode = BatteryMode.batterySaver;
+
+  Future<void> restoreSession({BatteryMode batteryMode = BatteryMode.batterySaver}) async {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool(_activeKey) ?? false)) return;
 
@@ -82,10 +94,15 @@ class TripTracker {
     _background = prefs.getBool(_backgroundKey) ?? false;
     _autoStarted = prefs.getBool(_autoKey) ?? false;
     _tracking = true;
+    _batteryMode = batteryMode;
     await _beginStream(background: _background);
   }
 
-  Future<void> start({bool background = false, bool autoStarted = false}) async {
+  Future<void> start({
+    bool background = false,
+    bool autoStarted = false,
+    BatteryMode batteryMode = BatteryMode.batterySaver,
+  }) async {
     if (_tracking) return;
 
     _positions.clear();
@@ -93,6 +110,7 @@ class TripTracker {
     _tracking = true;
     _background = background;
     _autoStarted = autoStarted;
+    _batteryMode = batteryMode;
     await _beginStream(background: background);
     await _persistSession();
   }
@@ -108,39 +126,44 @@ class TripTracker {
   }
 
   LocationSettings _buildSettings({required bool background}) {
+    final base = _batteryMode.activeLocationSettings;
+
     if (Platform.isAndroid) {
+      // Always attach a foreground service notification while tracking so GPS
+      // keeps running and the system shows an ongoing lock-screen entry.
       return AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
-        foregroundNotificationConfig: background
-            ? const ForegroundNotificationConfig(
-                notificationTitle: 'Mileage Tracker',
-                notificationText: 'Tracking your trip in the background',
-                enableWakeLock: true,
-              )
-            : null,
+        accuracy: base.accuracy,
+        distanceFilter: base.distanceFilter,
+        foregroundNotificationConfig: ForegroundNotificationConfig(
+          notificationTitle: AppConfig.appName,
+          notificationText: background
+              ? 'Tracking trip · ${_batteryMode.label}'
+              : 'GPS active · ${_batteryMode.label}',
+          enableWakeLock: true,
+          setOngoing: true,
+        ),
       );
     }
 
     if (Platform.isIOS) {
       return AppleSettings(
-        accuracy: LocationAccuracy.high,
+        accuracy: base.accuracy,
         activityType: ActivityType.automotiveNavigation,
-        distanceFilter: 10,
+        distanceFilter: base.distanceFilter,
         pauseLocationUpdatesAutomatically: false,
         showBackgroundLocationIndicator: background,
         allowBackgroundLocationUpdates: background,
       );
     }
 
-    return const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10,
-    );
+    return base;
   }
 
   void _onPosition(Position position) {
     if (!_tracking) return;
+
+    // Accuracy gate: ignore noisy fixes (no extra GPS work).
+    if (position.accuracy > _maxAccuracyMeters) return;
 
     if (_positions.isNotEmpty) {
       final last = _positions.last;
@@ -150,19 +173,40 @@ class TripTracker {
         position.latitude,
         position.longitude,
       );
+
+      // Teleport / multipath filter using time between samples when available.
+      final dtMs = position.timestamp.difference(last.timestamp).inMilliseconds;
+      if (dtMs > 0) {
+        final speed = meters / (dtMs / 1000.0);
+        if (speed > _maxSpeedMps && meters > 80) return;
+      } else if (meters > 200) {
+        // No timestamp delta but huge jump — skip.
+        return;
+      }
+
+      // Tiny jitter below half the distance filter is noise.
+      final minStep = (_batteryMode.activeLocationSettings.distanceFilter) * 0.35;
+      if (meters < minStep && meters < 8) return;
+
       _miles += meters / 1609.34;
       _persistSession();
     }
     _positions.add(position);
   }
 
-  double stop() {
+  /// Stops tracking and returns miles + sparse route for map / cloud.
+  TripTrackResult stop() {
     _tracking = false;
     _background = false;
     _autoStarted = false;
     _subscription?.cancel();
     _subscription = null;
-    final result = _miles;
+
+    final route = _positions
+        .map((p) => GeoPoint(p.latitude, p.longitude))
+        .toList(growable: false);
+    final result = TripTrackResult(miles: _miles, route: route);
+
     _positions.clear();
     _miles = 0;
     _clearSession();

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../config/app_config.dart';
 import '../providers/app_state.dart';
 import '../screens/location_permission_sheet.dart';
+import '../screens/premium_sheet.dart';
 
 /// Shows the disclosure sheet, then requests OS permissions via [AppState].
 class PremiumPermissionFlow {
   static Future<void> startManualTrip(BuildContext context, AppState state) async {
+    // Background GPS for premium (or auto-started) paths needs Always permission.
     if (state.isPremium) {
       final accepted = await showLocationPermissionExplainer(
         context,
@@ -31,9 +34,19 @@ class PremiumPermissionFlow {
       return;
     }
 
-    if (!state.isPremium) {
+    if (!state.canUseAutoDetect) {
+      final limit = AppConfig.freeAutoTripsPerMonth;
+      final used = state.usage.autoTripsThisMonth;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Auto-detect is a Premium feature.')),
+        SnackBar(
+          content: Text(
+            'Free auto-detect limit reached ($used/$limit this month). Upgrade to Pro for unlimited.',
+          ),
+          action: SnackBarAction(
+            label: 'Upgrade',
+            onPressed: () => showPremiumSheet(context),
+          ),
+        ),
       );
       return;
     }

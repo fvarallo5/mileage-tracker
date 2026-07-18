@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api';
+import { useAuth } from './auth';
+import Auth from './components/Auth';
 import ImportTrips from './components/ImportTrips';
 import TripForm from './components/TripForm';
 import TripList from './components/TripList';
@@ -8,7 +10,7 @@ import ReportStats from './components/ReportStats';
 
 const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
-export default function App() {
+function MainApp({ auth, onSignOut }) {
   const [tab, setTab] = useState('trips');
   const [trips, setTrips] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -20,6 +22,7 @@ export default function App() {
   const loadData = useCallback(async () => {
     setError(null);
     try {
+      await api.init();
       const [tripsData, summaryData, settings] = await Promise.all([
         api.getTrips({ limit: 50 }),
         api.getReportSummary(),
@@ -77,21 +80,30 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div>
-          <h1>Mileage Tracker</h1>
-          <p>Track trip mileage, tips, and expense reports</p>
+          <h1>TrekTrack</h1>
+          <p>
+            {auth.isAnonymous
+              ? 'Guest mode — create an account to sync'
+              : `Signed in as ${auth.userEmail}`}
+          </p>
         </div>
-        <div className="rate-badge">
-          <span>IRS rate</span>
-          <span>$</span>
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
-            value={mileageRate}
-            onChange={handleRateChange}
-            title="Mileage reimbursement rate per mile"
-          />
-          <span>/mi</span>
+        <div className="header-actions">
+          <button type="button" className="btn-ghost btn-sm" onClick={onSignOut}>
+            Sign out
+          </button>
+          <div className="rate-badge">
+            <span>IRS rate</span>
+            <span>$</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={mileageRate}
+              onChange={handleRateChange}
+              title="Mileage reimbursement rate per mile"
+            />
+            <span>/mi</span>
+          </div>
         </div>
       </header>
 
@@ -166,5 +178,35 @@ export default function App() {
 
       {tab === 'reports' && <Reports />}
     </div>
+  );
+}
+
+export default function App() {
+  const auth = useAuth();
+
+  if (auth.loading) {
+    return (
+      <div className="app">
+        <div className="loading">Loading…</div>
+      </div>
+    );
+  }
+
+  if (!auth.isSignedIn) {
+    return (
+      <Auth
+        onSignIn={auth.signIn}
+        onSignUp={auth.signUp}
+        onGuest={auth.signInAnonymously}
+      />
+    );
+  }
+
+  return (
+    <MainApp
+      key={auth.user?.id}
+      auth={auth}
+      onSignOut={auth.signOut}
+    />
   );
 }

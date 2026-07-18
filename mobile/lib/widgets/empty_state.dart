@@ -18,6 +18,7 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
       child: Column(
@@ -26,19 +27,19 @@ class EmptyState extends StatelessWidget {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: AppColors.surface2,
+              color: p.surface,
               borderRadius: BorderRadius.circular(AppRadii.xl),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: p.border),
             ),
-            child: Icon(icon, size: 32, color: AppColors.textMuted),
+            child: Icon(icon, size: 32, color: p.textMuted),
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: p.text)),
           const SizedBox(height: AppSpacing.sm),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: p.textMuted),
           ),
           if (action != null) ...[
             const SizedBox(height: AppSpacing.lg),
