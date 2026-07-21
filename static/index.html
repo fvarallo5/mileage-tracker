@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TrekTrack — Mileage tracking for gig drivers</title>
+  <meta name="description" content="TrekTrack logs business miles automatically, applies IRS rates, and exports tax-ready Schedule C packages. Free 30 auto trips/month. Pro from $3.99/mo." />
+  <meta name="theme-color" content="#0a0e14" />
+  <link rel="canonical" href="https://trektrack.pro/" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://trektrack.pro/" />
+  <meta property="og:title" content="TrekTrack — Audit-ready mileage. Built for the road." />
+  <meta property="og:description" content="Auto-detect trips, IRS mileage rates, and TurboTax-friendly tax packages. Free to start. Pro for unlimited auto-detect." />
+  <meta property="og:image" content="https://trektrack.pro/assets/app-icon.png" />
+  <meta property="og:site_name" content="TrekTrack" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="TrekTrack — Mileage for gig drivers" />
+  <meta name="twitter:description" content="Auto-detect, IRS rates, Schedule C export. Free 30 auto trips/month." />
+  <meta name="twitter:image" content="https://trektrack.pro/assets/app-icon.png" />
+
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png" />
+  <link rel="apple-touch-icon" href="assets/favicon-192.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@450;500;600;700;750&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="site.css" />
+</head>
+<body>
+  <header class="nav" id="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="/">
+        <img src="assets/app-icon.png" width="36" height="36" alt="" />
+        TrekTrack
+      </a>
+      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" id="navToggle">Menu</button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#download" class="nav-cta">Get the app</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <div class="eyebrow">Built for gig &amp; delivery drivers</div>
+          <h1>Audit-ready mileage.<br /><em>Built for the road.</em></h1>
+          <p class="hero-lead">
+            TrekTrack auto-logs your drives, separates business from personal,
+            applies current IRS rates, and exports a tax package your CPA (or TurboTax) can actually use.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#download">Start free</a>
+            <a class="btn btn-secondary" href="#pricing">See Pro pricing</a>
+          </div>
+          <div class="hero-meta">
+            <span><strong>30</strong> free auto trips / month</span>
+            <span><strong>72.5¢</strong> IRS rate for 2026</span>
+            <span><strong>No ads</strong> — ever</span>
+          </div>
+        </div>
+
+        <div class="phone-wrap" aria-hidden="true">
+          <div class="phone">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+              <div class="ui-bar">
+                <span>Today</span>
+                <span class="ui-pill">● Auto on</span>
+              </div>
+              <div class="ui-card accent">
+                <div class="ui-label">Business miles</div>
+                <div class="ui-value">142.6 mi</div>
+                <div class="ui-row">
+                  <span>Mileage deduction</span>
+                  <span class="ui-value green" style="font-size:1rem">$103.39</span>
+                </div>
+              </div>
+              <div class="ui-stat-grid">
+                <div class="ui-stat">
+                  <div class="ui-label">Trips</div>
+                  <b>18</b>
+                </div>
+                <div class="ui-stat">
+                  <div class="ui-label">Tips logged</div>
+                  <b>$214</b>
+                </div>
+              </div>
+              <div class="ui-card">
+                <div class="ui-label">Tax package</div>
+                <div style="font-weight:650;font-size:0.9rem;margin-bottom:0.35rem">2026 ready</div>
+                <div class="ui-row">
+                  <span>Mileage log + Schedule C</span>
+                  <span style="color:var(--accent)">Export</span>
+                </div>
+              </div>
+              <div class="ui-card">
+                <div class="ui-row" style="margin:0">
+                  <span style="font-weight:600">Uber · 8.4 mi</span>
+                  <span>Business</span>
+                </div>
+                <div class="ui-row">
+                  <span style="color:var(--muted)">DoorDash · 3.1 mi</span>
+                  <span>Business</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="container">
+        <div class="section-head">
+          <h2>Everything you need. Nothing you don’t.</h2>
+          <p>
+            No bank sync, no bloated expense suite, no team admin. Just accurate miles and a clean tax export.
+          </p>
+        </div>
+        <div class="features">
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">◎</div>
+            <h3>Auto-detect trips</h3>
+            <p>
+              Free includes 30 auto trips every month. Pro unlocks unlimited auto-detect so you never run out mid-shift.
+            </p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">⌖</div>
+            <h3>Background GPS</h3>
+            <p>
+              Keep tracking when you switch to Uber, DoorDash, or Maps. Battery-smart modes for full days on the road.
+            </p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">$</div>
+            <h3>IRS rates built in</h3>
+            <p>
+              Standard mileage rates update by tax year (72.5¢/mi for 2026). Per-trip rates when years cross.
+            </p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">▣</div>
+            <h3>Business vs personal</h3>
+            <p>
+              Mark purpose per trip. Personal miles stay out of your deduction and tax package automatically.
+            </p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">↓</div>
+            <h3>Tax package export</h3>
+            <p>
+              Pro exports a mileage log CSV, Schedule C summary, and short README for your CPA or tax software.
+            </p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">⇄</div>
+            <h3>CSV import</h3>
+            <p>
+              Bring trips in from gig platform exports. Manual entry stays free and unlimited on every plan.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="how" style="background: var(--bg-elevated)">
+      <div class="container">
+        <div class="section-head">
+          <h2>How it works</h2>
+          <p>From first drive to tax season — without a spreadsheet nightmare.</p>
+        </div>
+        <div class="steps">
+          <article class="step">
+            <h3>Drive</h3>
+            <p>Start a trip or turn on auto-detect. TrekTrack measures miles while you work.</p>
+          </article>
+          <article class="step">
+            <h3>Classify</h3>
+            <p>Mark business or personal. Log tips if you want earnings-per-mile context.</p>
+          </article>
+          <article class="step">
+            <h3>Export</h3>
+            <p>At tax time, share a TurboTax-friendly package with your CPA — Pro only.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="pricing">
+      <div class="container">
+        <div class="section-head">
+          <h2>Simple pricing</h2>
+          <p>Start free. Upgrade when auto-detect becomes your daily driver.</p>
+        </div>
+        <div class="pricing-grid">
+          <article class="price-card">
+            <h3>Free</h3>
+            <div class="price-amount">$0 <span>/ forever</span></div>
+            <p class="price-sub">Enough to try real shifts</p>
+            <ul class="price-list">
+              <li>30 auto-detect trips / month</li>
+              <li>Unlimited manual trips</li>
+              <li>IRS mileage rates &amp; reports</li>
+              <li>Business / personal purpose</li>
+              <li class="muted">Tax package export — Pro</li>
+              <li class="muted">Unlimited auto-detect — Pro</li>
+            </ul>
+            <a class="btn btn-secondary" href="#download">Download free</a>
+          </article>
+          <article class="price-card featured">
+            <span class="price-badge">Best value</span>
+            <h3>Pro</h3>
+            <div class="price-amount">$3.99 <span>/ month</span></div>
+            <p class="price-sub">or $29.99 / year · 7-day free trial</p>
+            <ul class="price-list">
+              <li>Unlimited auto-detect</li>
+              <li>Background GPS all day</li>
+              <li>Battery-smart tracking modes</li>
+              <li>Tax package (log + Schedule C)</li>
+              <li>Everything in Free</li>
+            </ul>
+            <a class="btn btn-primary" href="#download">Start free trial</a>
+          </article>
+        </div>
+        <div class="compare">
+          <strong>Why so much less than MileIQ?</strong>
+          We’re individual-first: no teams, no bank feed, no tax-filing suite.
+          You pay for mileage that works — not a feature pile you won’t use.
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-band" id="download">
+      <div class="container">
+        <div class="cta-card">
+          <div>
+            <h2>Ready for the next shift?</h2>
+            <p>
+              TrekTrack is launching on iOS and Android. Join free, log miles, and upgrade when you’re ready for unlimited auto-detect.
+            </p>
+          </div>
+          <div class="hero-actions" style="margin:0">
+            <!-- Replace # with live store URLs when published -->
+            <a class="btn btn-primary" href="mailto:support@trektrack.app?subject=TrekTrack%20early%20access">
+              Get early access
+            </a>
+            <a class="btn btn-secondary" href="mailto:support@trektrack.app">Contact support</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <a class="brand" href="/">
+          <img src="assets/app-icon.png" width="36" height="36" alt="" />
+          TrekTrack
+        </a>
+        <div class="footer-links">
+          <a href="#features">Features</a>
+          <a href="#pricing">Pricing</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="mailto:support@trektrack.app">Support</a>
+        </div>
+      </div>
+      <p class="footer-copy">
+        © 2026 TrekTrack · trektrack.pro · Not affiliated with Uber, DoorDash, Lyft, or Instacart.
+        Not tax advice — confirm rates with a tax professional.
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var nav = document.getElementById("nav");
+      var toggle = document.getElementById("navToggle");
+      var links = document.getElementById("navLinks");
+
+      function onScroll() {
+        nav.classList.toggle("scrolled", window.scrollY > 8);
+      }
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+
+      if (toggle && links) {
+        toggle.addEventListener("click", function () {
+          var open = links.classList.toggle("open");
+          toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        });
+        links.querySelectorAll("a").forEach(function (a) {
+          a.addEventListener("click", function () {
+            links.classList.remove("open");
+            toggle.setAttribute("aria-expanded", "false");
+          });
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
