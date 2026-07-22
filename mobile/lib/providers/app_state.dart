@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../config/app_config.dart';
 import '../config/supabase_config.dart';
+import '../models/entitlement.dart';
 import '../models/geo_point.dart';
 import '../models/period_report.dart';
 import '../models/trip.dart';
@@ -15,6 +16,7 @@ import '../services/battery_mode.dart';
 import '../services/battery_service.dart';
 import '../services/billing_service.dart';
 import '../services/car_bluetooth_service.dart';
+import '../services/entitlement_service.dart';
 import '../services/irs_mileage_rate.dart';
 import '../services/lock_screen_trip_service.dart';
 import '../services/map_match_service.dart';
@@ -28,7 +30,8 @@ class AppState extends ChangeNotifier {
   AppState(this._supabase) {
     _tracker = TripTracker();
     _premium = PremiumService();
-    _billing = BillingService(_premium)..onChanged = notifyListeners;
+    _entitlements = EntitlementService(_premium, _supabase);
+    _billing = BillingService(_entitlements)..onChanged = notifyListeners;
     _battery = BatteryService()..addListener(notifyListeners);
     _usage = UsageService();
     _carBluetooth = CarBluetoothService()..addListener(_onPowerGateChanged);
@@ -45,6 +48,7 @@ class AppState extends ChangeNotifier {
   final SupabaseService _supabase;
   late final TripTracker _tracker;
   late final PremiumService _premium;
+  late final EntitlementService _entitlements;
   late final BillingService _billing;
   late final BatteryService _battery;
   late final UsageService _usage;
@@ -56,6 +60,7 @@ class AppState extends ChangeNotifier {
 
   SupabaseService get supabase => _supabase;
   PremiumService get premium => _premium;
+  EntitlementService get entitlements => _entitlements;
   BillingService get billing => _billing;
   BatteryService get battery => _battery;
   UsageService get usage => _usage;
@@ -66,6 +71,7 @@ class AppState extends ChangeNotifier {
   bool get lockScreenControlsEnabled => _lockScreen.enabled;
   bool get mapMatchEnabled => _mapMatch.enabled;
   bool get isPremium => _premium.isPremium;
+  Entitlement get entitlement => _premium.entitlement;
   bool get autoDetectEnabled => _premium.autoDetectEnabled;
   bool get autoDetectMonitoring => _autoDetect.isMonitoring;
   AutoDetectPhase get autoDetectPhase => _autoDetect.phase;
@@ -111,6 +117,9 @@ class AppState extends ChangeNotifier {
   double liveMiles = 0;
   String? lastAutoDetectMessage;
 
+  /// Free→Pro funnel sheet waiting to be shown by [HomeShell].
+  FunnelPrompt? pendingFunnelPrompt;
+
   TripTracker get tracker => _tracker;
   bool get trackingInBackground => tracking && _tracker.isBackground;
   bool get trackingIsAuto => tracking && _tracker.isAutoStarted;
@@ -125,12 +134,13 @@ class AppState extends ChangeNotifier {
     }
 
     await _supabase.initialize();
-    await _premium.load();
+    await _entitlements.loadLocal();
     await _usage.load();
     await _battery.load();
     await _carBluetooth.load();
     await _activity.load();
     await _mapMatch.load();
+    await _entitlements.reconcile();
     await _billing.initialize();
     await _tracker.restoreSession(batteryMode: _battery.mode);
     tracking = _tracker.isTracking;
@@ -185,6 +195,7 @@ class AppState extends ChangeNotifier {
       final results = await Future.wait([
         _supabase.getTrips(limit: 100),
         _supabase.getReportSummary(),
+        _entitlements.reconcile(),
       ]);
       trips = results[0] as List<Trip>;
       summary = results[1] as ReportSummary;
@@ -226,8 +237,8 @@ class AppState extends ChangeNotifier {
     await loadReportHistory();
   }
 
-  Future<void> exportTaxPackage({int? year}) async {
-    await TaxExportService.shareTaxPackage(
+  Future<TaxYearSummary> exportTaxPackage({int? year}) async {
+    return TaxExportService.shareTaxPackage(
       trips: trips,
       year: year ?? IrsMileageRate.currentYear,
     );
@@ -283,14 +294,29 @@ class AppState extends ChangeNotifier {
     unawaited(_syncAutoDetectMonitoring());
   }
 
-  Future<String> purchasePremium() => _billing.purchasePremium();
+  Future<String> purchasePremium({bool? annual}) async {
+    final message = await _billing.purchasePremium(annual: annual);
+    notifyListeners();
+    return message;
+  }
 
-  Future<String> restorePurchases() => _billing.restorePurchases();
+  Future<String> restorePurchases() async {
+    final message = await _billing.restorePurchases();
+    notifyListeners();
+    return message;
+  }
+
+  void consumeFunnelPrompt() {
+    pendingFunnelPrompt = null;
+  }
 
   Future<String> unlockPremiumForDevelopment() async {
     await _billing.unlockForDevelopment();
     notifyListeners();
-    return 'Pro unlocked for development testing.';
+    if (_entitlements.lastSyncError != null) {
+      return 'Pro unlocked locally. Cloud sync: ${_entitlements.lastSyncError}';
+    }
+    return 'Pro unlocked for development testing (synced to account).';
   }
 
   Future<void> disableAutoDetect() async {
@@ -389,11 +415,14 @@ class AppState extends ChangeNotifier {
       source: 'autodetect',
     );
     if (trip != null) {
-      await _usage.recordAutoTrip();
+      final prompt = await _usage.recordAutoTrip(isPremium: isPremium);
       final left = _usage.remainingFreeAutoTrips;
       lastAutoDetectMessage = isPremium
           ? 'Auto-saved ${trip.miles.toStringAsFixed(1)} mi'
           : 'Auto-saved ${trip.miles.toStringAsFixed(1)} mi · $left free left this month';
+      if (prompt != null) {
+        pendingFunnelPrompt = prompt;
+      }
       if (!isPremium && !_usage.hasFreeAutoTripsRemaining) {
         lastAutoDetectMessage =
             'Auto-saved ${trip.miles.toStringAsFixed(1)} mi · free limit reached';

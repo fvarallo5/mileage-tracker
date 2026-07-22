@@ -1,10 +1,12 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/import_formats.dart';
+import '../models/entitlement.dart';
 import '../models/import_result.dart';
 import '../models/period_report.dart';
 import '../models/trip.dart';
 import 'csv_importer.dart';
+import 'entitlement_service.dart';
 import 'report_service.dart';
 
 class ApiException implements Exception {
@@ -180,6 +182,57 @@ class SupabaseService {
     }).select('mileage_rate').single();
 
     return (row['mileage_rate'] as num).toDouble();
+  }
+
+  Future<Entitlement?> fetchEntitlement() async {
+    final userId = _userId;
+    if (userId == null) throw EntitlementSyncException('Not signed in');
+
+    try {
+      final row = await _client
+          .from('entitlements')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+      if (row == null) return null;
+      return Entitlement.fromJson(Map<String, dynamic>.from(row));
+    } on PostgrestException catch (e) {
+      if (_isMissingEntitlementsTable(e)) {
+        throw EntitlementSyncException(
+          'Entitlements table missing. Run supabase/migrations/004_entitlements.sql',
+        );
+      }
+      throw EntitlementSyncException(e.message);
+    }
+  }
+
+  Future<Entitlement> upsertEntitlement(Entitlement entitlement) async {
+    final userId = _userId;
+    if (userId == null) throw EntitlementSyncException('Not signed in');
+
+    try {
+      final row = await _client
+          .from('entitlements')
+          .upsert(entitlement.toUpsertPayload(userId))
+          .select()
+          .single();
+      return Entitlement.fromJson(Map<String, dynamic>.from(row));
+    } on PostgrestException catch (e) {
+      if (_isMissingEntitlementsTable(e)) {
+        throw EntitlementSyncException(
+          'Entitlements table missing. Run supabase/migrations/004_entitlements.sql',
+        );
+      }
+      throw EntitlementSyncException(e.message);
+    }
+  }
+
+  bool _isMissingEntitlementsTable(PostgrestException e) {
+    final m = e.message.toLowerCase();
+    return m.contains('entitlements') &&
+        (m.contains('does not exist') ||
+            m.contains('schema cache') ||
+            m.contains('could not find'));
   }
 
   Future<ImportFormats> getImportFormats() async {

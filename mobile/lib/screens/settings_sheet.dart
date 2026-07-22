@@ -279,19 +279,27 @@ class _SettingsSheetBody extends StatelessWidget {
               title: Text(state.isPremium ? 'Pro active' : 'Upgrade to Pro'),
               subtitle: Text(
                 state.isPremium
-                    ? 'Unlimited auto-detect + background GPS'
-                    : 'Unlimited auto trips beyond free ${AppConfig.freeAutoTripsPerMonth}/month',
+                    ? state.entitlement.statusSubtitle
+                    : 'Free ${AppConfig.freeAutoTripsPerMonth}/mo · Pro from \$3.99/mo or \$29.99/yr',
                 style: TextStyle(fontSize: 12, color: p.textMuted),
               ),
               trailing: state.isPremium
                   ? null
                   : Icon(Icons.chevron_right, color: p.textMuted),
-              onTap: state.isPremium ? null : () => showPremiumSheet(context),
+              onTap: state.isPremium
+                  ? null
+                  : () => showPremiumSheet(context, preferAnnual: true),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.restore, color: p.textMuted, size: 20),
               title: const Text('Restore purchases'),
+              subtitle: Text(
+                state.entitlements.lastSyncError != null
+                    ? 'Last sync issue — tap to retry'
+                    : 'Store + account entitlement',
+                style: TextStyle(fontSize: 12, color: p.textMuted),
+              ),
               onTap: () async {
                 final message = await state.restorePurchases();
                 if (!context.mounted) return;

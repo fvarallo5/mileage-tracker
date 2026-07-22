@@ -4,12 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../config/billing_config.dart';
-import 'premium_service.dart';
+import 'entitlement_service.dart';
 
 class BillingService {
-  BillingService(this._premium);
+  BillingService(this._entitlements);
 
-  final PremiumService _premium;
+  final EntitlementService _entitlements;
   final InAppPurchase _iap = InAppPurchase.instance;
 
   StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
@@ -20,8 +20,20 @@ class BillingService {
   bool purchasing = false;
   bool restoring = false;
   String? lastError;
-  ProductDetails? product;
-  String priceLabel = BillingConfig.fallbackPriceLabel;
+
+  ProductDetails? monthlyProduct;
+  ProductDetails? annualProduct;
+
+  bool preferAnnual = BillingConfig.defaultPreferAnnual;
+
+  String monthlyPriceLabel = BillingConfig.fallbackMonthlyLabel;
+  String annualPriceLabel = BillingConfig.fallbackYearlyLabel;
+  String annualPerMonthLabel = BillingConfig.fallbackYearlyPerMonthLabel;
+
+  String get priceLabel => preferAnnual ? annualPriceLabel : monthlyPriceLabel;
+
+  ProductDetails? get selectedProduct =>
+      preferAnnual ? (annualProduct ?? monthlyProduct) : (monthlyProduct ?? annualProduct);
 
   void Function()? onChanged;
 
@@ -45,6 +57,11 @@ class BillingService {
     await restorePurchases(silent: true);
   }
 
+  void setPreferAnnual(bool annual) {
+    preferAnnual = annual;
+    onChanged?.call();
+  }
+
   Future<void> loadProducts() async {
     if (!storeAvailable) return;
 
@@ -62,25 +79,53 @@ class BillingService {
     }
 
     if (response.productDetails.isEmpty) {
-      lastError = 'Premium subscription is not available in the store yet.';
+      lastError = 'Pro subscription is not available in the store yet.';
       onChanged?.call();
       return;
     }
 
-    product = response.productDetails.first;
-    priceLabel = '${product!.price} / month';
+    monthlyProduct = null;
+    annualProduct = null;
+    for (final p in response.productDetails) {
+      if (p.id == BillingConfig.monthlyProductId) {
+        monthlyProduct = p;
+        monthlyPriceLabel = '${p.price} / month';
+      } else if (p.id == BillingConfig.yearlyProductId) {
+        annualProduct = p;
+        annualPriceLabel = '${p.price} / year';
+        final micros = p.rawPrice;
+        if (micros > 0) {
+          final perMonth = micros / 12;
+          annualPerMonthLabel =
+              '${p.currencyCode} ${perMonth.toStringAsFixed(2)} / mo billed yearly';
+        } else {
+          annualPerMonthLabel = BillingConfig.fallbackYearlyPerMonthLabel;
+        }
+      }
+    }
+
+    if (preferAnnual && annualProduct == null && monthlyProduct != null) {
+      preferAnnual = false;
+    }
+    if (!preferAnnual && monthlyProduct == null && annualProduct != null) {
+      preferAnnual = true;
+    }
+
     onChanged?.call();
   }
 
-  Future<String> purchasePremium() async {
+  Future<String> purchasePremium({bool? annual}) async {
+    if (annual != null) preferAnnual = annual;
+
     if (!storeAvailable) {
       return 'App Store / Play Store billing is not available on this device.';
     }
-    if (product == null) {
+    if (selectedProduct == null) {
       await loadProducts();
     }
+    final product = selectedProduct;
     if (product == null) {
-      return lastError ?? 'Premium subscription is not available.';
+      return lastError ?? 'Pro subscription is not available.';
     }
     if (purchasing) return 'Purchase already in progress.';
 
@@ -89,7 +134,7 @@ class BillingService {
     _purchaseCompleter = Completer<String>();
     onChanged?.call();
 
-    final param = PurchaseParam(productDetails: product!);
+    final param = PurchaseParam(productDetails: product);
     final started = await _iap.buyNonConsumable(purchaseParam: param);
     if (!started) {
       purchasing = false;
@@ -121,22 +166,24 @@ class BillingService {
 
     if (silent) {
       await Future<void>.delayed(const Duration(milliseconds: 1500));
+      await _entitlements.reconcile();
       restoring = false;
       onChanged?.call();
       return '';
     }
 
     await Future<void>.delayed(const Duration(seconds: 2));
+    await _entitlements.reconcile();
     restoring = false;
     onChanged?.call();
 
-    if (_premium.isPremium && _premium.premiumFromBilling) {
-      return 'Premium subscription restored.';
+    if (_entitlements.isPremium) {
+      return 'Pro restored for this account.';
     }
-    return 'No active Premium subscription found for this account.';
+    return 'No active Pro subscription found for this store account.';
   }
 
-  void _onPurchaseUpdates(List<PurchaseDetails> purchases) {
+  Future<void> _onPurchaseUpdates(List<PurchaseDetails> purchases) async {
     for (final purchase in purchases) {
       if (!BillingConfig.productIds.contains(purchase.productID)) continue;
 
@@ -145,26 +192,38 @@ class BillingService {
           break;
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          _premium.activateFromBilling(purchase.purchaseID);
+          await _entitlements.grantFromStore(
+            productId: purchase.productID,
+            purchaseId: purchase.purchaseID,
+            purchaseToken: purchase.verificationData.serverVerificationData,
+          );
           if (purchase.pendingCompletePurchase) {
-            _iap.completePurchase(purchase);
+            await _iap.completePurchase(purchase);
           }
           purchasing = false;
           restoring = false;
-          _purchaseCompleter?.complete('Premium activated. Background GPS and auto-detect are now available.');
+          if (_purchaseCompleter != null && !_purchaseCompleter!.isCompleted) {
+            _purchaseCompleter!.complete(
+              'Pro unlocked. Unlimited auto-detect and background GPS are on.',
+            );
+          }
           _purchaseCompleter = null;
           onChanged?.call();
         case PurchaseStatus.error:
           lastError = purchase.error?.message ?? 'Purchase failed';
           purchasing = false;
           restoring = false;
-          _purchaseCompleter?.complete(lastError!);
+          if (_purchaseCompleter != null && !_purchaseCompleter!.isCompleted) {
+            _purchaseCompleter!.complete(lastError!);
+          }
           _purchaseCompleter = null;
           onChanged?.call();
         case PurchaseStatus.canceled:
           purchasing = false;
           restoring = false;
-          _purchaseCompleter?.complete('Purchase canceled.');
+          if (_purchaseCompleter != null && !_purchaseCompleter!.isCompleted) {
+            _purchaseCompleter!.complete('Purchase canceled.');
+          }
           _purchaseCompleter = null;
           onChanged?.call();
       }
@@ -173,7 +232,7 @@ class BillingService {
 
   Future<void> unlockForDevelopment() async {
     if (!kDebugMode) return;
-    await _premium.unlockForDevelopment();
+    await _entitlements.grantDebug();
     onChanged?.call();
   }
 

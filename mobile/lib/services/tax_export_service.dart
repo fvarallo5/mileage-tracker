@@ -7,15 +7,53 @@ import 'package:share_plus/share_plus.dart';
 import '../models/trip.dart';
 import 'irs_mileage_rate.dart';
 
+/// Snapshot of business mileage for a tax year.
+class TaxYearSummary {
+  final int year;
+  final int businessTripCount;
+  final double businessMiles;
+  final double deduction;
+  final double publishedRate;
+
+  const TaxYearSummary({
+    required this.year,
+    required this.businessTripCount,
+    required this.businessMiles,
+    required this.deduction,
+    required this.publishedRate,
+  });
+
+  bool get isEmpty => businessTripCount == 0;
+}
+
 /// Builds TurboTax / Schedule C friendly CSV packages from trip logs.
 class TaxExportService {
   static final _currency = NumberFormat('0.00');
 
+  static TaxYearSummary summarizeYear(List<Trip> trips, int year) {
+    final business = trips
+        .where((t) => t.isBusiness && t.date.startsWith('$year'))
+        .toList();
+    final miles = business.fold<double>(0, (s, t) => s + t.miles);
+    final deduction = business.fold<double>(
+      0,
+      (s, t) => s + t.miles * IrsMileageRate.rateForDateString(t.date),
+    );
+    return TaxYearSummary(
+      year: year,
+      businessTripCount: business.length,
+      businessMiles: miles,
+      deduction: deduction,
+      publishedRate: IrsMileageRate.rateForYear(year),
+    );
+  }
+
   /// Export a tax package for [year] (detailed log + Schedule C summary).
-  static Future<void> shareTaxPackage({
+  static Future<TaxYearSummary> shareTaxPackage({
     required List<Trip> trips,
     required int year,
   }) async {
+    final summary = summarizeYear(trips, year);
     final yearTrips = trips
         .where((t) => t.isBusiness && t.date.startsWith('$year'))
         .toList()
@@ -43,6 +81,7 @@ class TaxExportService {
             'Generated $stamp. Confirm rates with your tax pro.',
       ),
     );
+    return summary;
   }
 
   /// Share a single period summary + trip detail for the selected report range.

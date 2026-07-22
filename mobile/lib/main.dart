@@ -16,6 +16,7 @@ import 'services/supabase_service.dart';
 import 'services/theme_service.dart';
 import 'services/voice_command_service.dart';
 import 'theme/app_theme.dart';
+import 'utils/funnel_flow.dart';
 import 'widgets/summary_strip.dart';
 
 Future<void> main() async {
@@ -182,6 +183,16 @@ class _HomeShellState extends State<HomeShell> {
 
     return Consumer<AppState>(
       builder: (context, state, _) {
+        final prompt = state.pendingFunnelPrompt;
+        if (prompt != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            final p = state.pendingFunnelPrompt;
+            if (p == null) return;
+            state.consumeFunnelPrompt();
+            FunnelFlow.present(context, state, p);
+          });
+        }
         return Scaffold(
           backgroundColor: theme.scaffoldBackgroundColor,
           body: SafeArea(

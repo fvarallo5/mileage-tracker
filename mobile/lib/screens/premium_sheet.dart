@@ -7,7 +7,13 @@ import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bottom_sheet.dart';
 
-Future<void> showPremiumSheet(BuildContext context) async {
+Future<void> showPremiumSheet(
+  BuildContext context, {
+  bool? preferAnnual,
+}) async {
+  if (preferAnnual != null) {
+    context.read<AppState>().billing.setPreferAnnual(preferAnnual);
+  }
   await showAppBottomSheet(
     context,
     const _PremiumSheetContent(),
