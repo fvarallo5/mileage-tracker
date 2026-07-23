@@ -6,7 +6,9 @@ import 'package:provider/provider.dart';
 import '../config/app_config.dart';
 import '../providers/app_state.dart';
 import '../providers/auth_state.dart';
+import '../screens/places_sheet.dart';
 import '../screens/premium_sheet.dart';
+import '../screens/work_hours_sheet.dart';
 import '../services/battery_mode.dart';
 import '../services/irs_mileage_rate.dart';
 import '../services/theme_service.dart';
@@ -217,6 +219,32 @@ class _SettingsSheetBody extends StatelessWidget {
               onChanged: state.autoDetectEnabled
                   ? (v) => state.setActivityGate(v)
                   : null,
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.schedule, color: p.textMuted, size: 22),
+              title: const Text('Work hours'),
+              subtitle: Text(
+                state.workHours.enabled
+                    ? state.workHours.summaryLabel
+                    : 'Optional — only auto-detect during your shift',
+                style: TextStyle(fontSize: 12, color: p.textMuted),
+              ),
+              trailing: Icon(Icons.chevron_right, color: p.textMuted),
+              onTap: () => showWorkHoursSheet(context),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.place_outlined, color: p.textMuted, size: 22),
+              title: const Text('Places'),
+              subtitle: Text(
+                state.places.places.isEmpty
+                    ? 'Home, warehouse — skip auto-start or set purpose'
+                    : '${state.places.places.length} saved',
+                style: TextStyle(fontSize: 12, color: p.textMuted),
+              ),
+              trailing: Icon(Icons.chevron_right, color: p.textMuted),
+              onTap: () => showPlacesSheet(context),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

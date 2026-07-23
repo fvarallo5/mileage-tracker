@@ -138,7 +138,27 @@ class TripsScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: dateController,
-                decoration: const InputDecoration(labelText: 'Date (YYYY-MM-DD)'),
+                readOnly: true,
+                decoration: const InputDecoration(
+                  labelText: 'Date',
+                  suffixIcon: Icon(Icons.calendar_today_outlined, size: 18),
+                ),
+                onTap: () async {
+                  final parsed = DateTime.tryParse(dateController.text) ??
+                      DateTime.now();
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: parsed,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now().add(const Duration(days: 1)),
+                  );
+                  if (picked != null) {
+                    setModalState(() {
+                      dateController.text =
+                          DateFormat('yyyy-MM-dd').format(picked);
+                    });
+                  }
+                },
               ),
               const SizedBox(height: AppSpacing.md),
               TextField(
@@ -155,7 +175,12 @@ class TripsScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: notesController,
-                decoration: const InputDecoration(labelText: 'Notes'),
+                decoration: const InputDecoration(
+                  labelText: 'Notes / purpose',
+                  hintText: 'e.g. DoorDash lunch rush',
+                ),
+                textCapitalization: TextCapitalization.sentences,
+                maxLines: 2,
               ),
               const SizedBox(height: AppSpacing.lg),
               FilledButton(

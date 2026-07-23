@@ -194,6 +194,24 @@ class AutoDetectService extends ChangeNotifier {
     _setPhase(AutoDetectPhase.tripActive);
   }
 
+  /// Abort a start that AppState rejected (e.g. near home place).
+  void cancelPendingStart({String? detail}) {
+    _tripActive = false;
+    _startInFlight = false;
+    _tripStartedAt = null;
+    _resetStartWindow();
+    _resetStopWindow();
+    _resetActiveDistance();
+    if (_monitoring) {
+      _setPhase(
+        AutoDetectPhase.watching,
+        detail: detail ?? 'Start skipped',
+      );
+    } else {
+      _setPhase(AutoDetectPhase.off);
+    }
+  }
+
   void resumeAfterTrip() {
     _tripActive = false;
     _startInFlight = false;

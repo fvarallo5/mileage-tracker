@@ -20,11 +20,13 @@ import '../services/entitlement_service.dart';
 import '../services/irs_mileage_rate.dart';
 import '../services/lock_screen_trip_service.dart';
 import '../services/map_match_service.dart';
+import '../services/places_service.dart';
 import '../services/premium_service.dart';
 import '../services/supabase_service.dart';
 import '../services/tax_export_service.dart';
 import '../services/trip_tracker.dart';
 import '../services/usage_service.dart';
+import '../services/work_hours_service.dart';
 
 class AppState extends ChangeNotifier {
   AppState(this._supabase) {
@@ -34,6 +36,8 @@ class AppState extends ChangeNotifier {
     _billing = BillingService(_entitlements)..onChanged = notifyListeners;
     _battery = BatteryService()..addListener(notifyListeners);
     _usage = UsageService();
+    _workHours = WorkHoursService()..addListener(_onPowerGateChanged);
+    _places = PlacesService()..addListener(notifyListeners);
     _carBluetooth = CarBluetoothService()..addListener(_onPowerGateChanged);
     _activity = ActivityRecognitionService()..addListener(_onPowerGateChanged);
     _mapMatch = MapMatchService()..addListener(notifyListeners);
@@ -52,11 +56,14 @@ class AppState extends ChangeNotifier {
   late final BillingService _billing;
   late final BatteryService _battery;
   late final UsageService _usage;
+  late final WorkHoursService _workHours;
+  late final PlacesService _places;
   late final CarBluetoothService _carBluetooth;
   late final ActivityRecognitionService _activity;
   late final MapMatchService _mapMatch;
   late final LockScreenTripService _lockScreen;
   late final AutoDetectService _autoDetect;
+  Timer? _workHoursTimer;
 
   SupabaseService get supabase => _supabase;
   PremiumService get premium => _premium;
@@ -64,6 +71,8 @@ class AppState extends ChangeNotifier {
   BillingService get billing => _billing;
   BatteryService get battery => _battery;
   UsageService get usage => _usage;
+  WorkHoursService get workHours => _workHours;
+  PlacesService get places => _places;
   CarBluetoothService get carBluetooth => _carBluetooth;
   ActivityRecognitionService get activityRecognition => _activity;
   MapMatchService get mapMatch => _mapMatch;
@@ -82,10 +91,13 @@ class AppState extends ChangeNotifier {
   bool get activityGateEnabled => _activity.gateEnabled;
   bool get activityInVehicle => _activity.inVehicle;
   BatteryMode get batteryMode => _battery.mode;
+  bool get workHoursEnabled => _workHours.enabled;
 
   /// All optional power gates currently allow watching (or are off).
   bool get powerGatesAllowWatch =>
-      _carBluetooth.allowsAutoDetectWatch && _activity.allowsAutoDetectWatch;
+      _carBluetooth.allowsAutoDetectWatch &&
+      _activity.allowsAutoDetectWatch &&
+      _workHours.allowsAutoDetectWatch;
 
   /// True when a power gate is holding GPS watch off.
   bool get isWaitingOnPowerGate =>
@@ -97,6 +109,7 @@ class AppState extends ChangeNotifier {
   /// Human-readable reason GPS watch is sleeping.
   String? get powerGateWaitLabel {
     if (!isWaitingOnPowerGate) return null;
+    if (!_workHours.allowsAutoDetectWatch) return _workHours.statusLabel;
     if (!_carBluetooth.allowsAutoDetectWatch) return _carBluetooth.statusLabel;
     if (!_activity.allowsAutoDetectWatch) return _activity.statusLabel;
     return null;
@@ -138,12 +151,15 @@ class AppState extends ChangeNotifier {
     await _entitlements.loadLocal();
     await _usage.load();
     await _battery.load();
+    await _workHours.load();
+    await _places.load();
     await _carBluetooth.load();
     await _activity.load();
     await _mapMatch.load();
     await _entitlements.reconcile();
     await _billing.initialize();
     await _tracker.restoreSession(batteryMode: _battery.mode);
+    _ensureWorkHoursTimer();
     tracking = _tracker.isTracking;
     if (tracking) {
       liveMiles = _tracker.currentMiles;
@@ -264,6 +280,43 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setWorkHoursEnabled(bool enabled) async {
+    await _workHours.setEnabled(enabled);
+    _ensureWorkHoursTimer();
+    await _syncAutoDetectMonitoring();
+    notifyListeners();
+  }
+
+  Future<void> setWorkHoursStart(int minutes) async {
+    await _workHours.setStartMinutes(minutes);
+    await _syncAutoDetectMonitoring();
+    notifyListeners();
+  }
+
+  Future<void> setWorkHoursEnd(int minutes) async {
+    await _workHours.setEndMinutes(minutes);
+    await _syncAutoDetectMonitoring();
+    notifyListeners();
+  }
+
+  Future<void> setWorkHoursDay(int dayIndex, bool active) async {
+    await _workHours.setDayActive(dayIndex, active);
+    await _syncAutoDetectMonitoring();
+    notifyListeners();
+  }
+
+  void _ensureWorkHoursTimer() {
+    _workHoursTimer?.cancel();
+    if (!_workHours.enabled || !_premium.autoDetectEnabled) {
+      _workHoursTimer = null;
+      return;
+    }
+    // Re-evaluate at the top of each minute so shift start/end apply promptly.
+    _workHoursTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      unawaited(_syncAutoDetectMonitoring());
+    });
+  }
+
   Future<void> setCarBluetoothGate(bool enabled) async {
     await _carBluetooth.setGateEnabled(enabled);
     if (enabled && !_carBluetooth.hasPermission) {
@@ -326,6 +379,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> disableAutoDetect() async {
     await _premium.setAutoDetect(false);
+    _ensureWorkHoursTimer();
     await _syncAutoDetectMonitoring();
     notifyListeners();
   }
@@ -339,6 +393,7 @@ class AppState extends ChangeNotifier {
     if (permError != null) return permError;
 
     await _premium.setAutoDetect(true);
+    _ensureWorkHoursTimer();
     await _syncAutoDetectMonitoring();
     notifyListeners();
     return null;
@@ -378,17 +433,46 @@ class AppState extends ChangeNotifier {
 
     if (!canUseAutoDetect) {
       lastAutoDetectMessage = 'Auto-detect paused — free monthly limit reached.';
+      _autoDetect.cancelPendingStart(detail: 'Free limit reached');
       await _premium.setAutoDetect(false);
       await _syncAutoDetectMonitoring();
       notifyListeners();
       return;
     }
 
+    if (!_workHours.allowsAutoDetectWatch) {
+      lastAutoDetectMessage = 'Outside work hours — auto-start skipped';
+      _autoDetect.cancelPendingStart(detail: 'Outside work hours');
+      notifyListeners();
+      return;
+    }
+
+    // Skip auto-start near exclude places (home, etc.).
+    try {
+      final pos = await Geolocator.getLastKnownPosition() ??
+          await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+              timeLimit: Duration(seconds: 5),
+            ),
+          );
+      final blocked = _places.blocksAutoStart(pos.latitude, pos.longitude);
+      if (blocked != null) {
+        lastAutoDetectMessage =
+            'Near ${blocked.name} — auto-start skipped';
+        _autoDetect.cancelPendingStart(detail: 'Near ${blocked.name}');
+        notifyListeners();
+        return;
+      }
+    } catch (_) {
+      // If location unavailable, allow start (better than blocking shifts).
+    }
+
     if (!connected) {
       lastAutoDetectMessage =
           'Drive detected, but you\'re offline. Connect to save auto trips.';
       // Stay ready to try again after cooldown.
-      _autoDetect.resumeAfterTrip();
+      _autoDetect.cancelPendingStart(detail: 'Offline — try again soon');
       notifyListeners();
       return;
     }
@@ -544,6 +628,14 @@ class AppState extends ChangeNotifier {
     final minMiles = wasAuto ? 0.25 : 0.1;
     if (result.miles < minMiles) return null;
 
+    // Classify purpose from end location when a place matches.
+    var purposeBusiness = true;
+    final end = result.end;
+    if (end != null) {
+      final classified = _places.classifyIsBusiness(end.lat, end.lng);
+      if (classified != null) purposeBusiness = classified;
+    }
+
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final refined = await _mapMatch.refine(
       points: result.route,
@@ -555,7 +647,7 @@ class AppState extends ChangeNotifier {
       tips: tips,
       notes: notes,
       source: wasAuto ? 'autodetect' : source,
-      isBusiness: true,
+      isBusiness: purposeBusiness,
       startLat: result.start?.lat,
       startLng: result.start?.lng,
       endLat: result.end?.lat,
@@ -649,8 +741,11 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     _stopLiveMilesPoll();
+    _workHoursTimer?.cancel();
     _billing.dispose();
     _battery.removeListener(notifyListeners);
+    _workHours.removeListener(_onPowerGateChanged);
+    _places.removeListener(notifyListeners);
     _carBluetooth.removeListener(_onPowerGateChanged);
     _carBluetooth.dispose();
     _activity.removeListener(_onPowerGateChanged);
