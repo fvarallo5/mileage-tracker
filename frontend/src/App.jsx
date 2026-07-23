@@ -180,7 +180,7 @@ function MainApp({ auth, onSignOut }) {
           Privacy Policy
         </a>
         <span aria-hidden="true">·</span>
-        <a href="mailto:support@trektrack.app">support@trektrack.app</a>
+        <a href="mailto:info@trektrack.pro">info@trektrack.pro</a>
       </footer>
     </div>
   );

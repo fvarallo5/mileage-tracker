@@ -7,6 +7,7 @@ import '../services/autodetect_service.dart';
 import '../services/battery_mode.dart';
 import '../theme/app_theme.dart';
 import '../utils/premium_permission_flow.dart';
+import 'usage_meter.dart';
 
 class PremiumCard extends StatelessWidget {
   final AppState state;
@@ -169,7 +170,7 @@ class _AutoDetectCard extends StatelessWidget {
               'Pro · unlimited auto trips',
               style: TextStyle(color: AppColors.amber, fontSize: 12, fontWeight: FontWeight.w600),
             )
-          else
+          else ...[
             Text(
               freeLeft > 0
                   ? 'Free · $freeLeft of $freeLimit auto trips left this month'
@@ -180,14 +181,21 @@ class _AutoDetectCard extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
-          if (!state.isPremium && freeLeft > 0 && freeLeft <= 5)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Only $freeLeft free auto trips left — upgrade for unlimited.',
-                style: const TextStyle(color: AppColors.amber, fontSize: 11, fontWeight: FontWeight.w600),
+            const SizedBox(height: 8),
+            UsageMeter(used: used, limit: freeLimit, compact: true),
+            if (freeLeft > 0 && freeLeft <= 5)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Only $freeLeft free auto trips left — upgrade for unlimited.',
+                  style: const TextStyle(
+                    color: AppColors.amber,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
-            ),
+          ],
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text('Auto-detect trips', style: TextStyle(color: p.text)),

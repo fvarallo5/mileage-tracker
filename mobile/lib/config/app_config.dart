@@ -21,7 +21,9 @@ class AppConfig {
 
   static String get supabaseUrl => SupabaseConfig.url;
 
-  static String get supportEmail => 'support@trektrack.app';
+  static String get supportEmail => 'info@trektrack.pro';
+
+  static String get websiteUrl => 'https://trektrack.pro';
 
   static String get appName => 'TrekTrack';
 

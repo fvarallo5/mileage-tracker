@@ -116,6 +116,7 @@ class AppState extends ChangeNotifier {
   bool tracking = false;
   double liveMiles = 0;
   String? lastAutoDetectMessage;
+  Timer? _liveMilesTimer;
 
   /// Free→Pro funnel sheet waiting to be shown by [HomeShell].
   FunnelPrompt? pendingFunnelPrompt;
@@ -256,6 +257,10 @@ class AppState extends ChangeNotifier {
   Future<void> setBatteryMode(BatteryMode mode) async {
     await _battery.setMode(mode);
     await _autoDetect.applyMode(mode);
+    // Hot-swap GPS sampling if a trip is already running.
+    if (tracking) {
+      await _tracker.applyBatteryMode(mode);
+    }
     notifyListeners();
   }
 
@@ -398,8 +403,10 @@ class AppState extends ChangeNotifier {
 
     if (tracking) {
       lastAutoDetectMessage = 'Auto trip in progress';
-    } else if (error != null) {
-      lastAutoDetectMessage = error;
+    } else {
+      // Start failed — don't leave auto-detect stuck in "trip active".
+      lastAutoDetectMessage = error ?? 'Could not start auto trip GPS';
+      _autoDetect.resumeAfterTrip();
       await _syncAutoDetectMonitoring();
     }
     notifyListeners();
@@ -495,6 +502,7 @@ class AppState extends ChangeNotifier {
   }
 
   void _pollLiveMiles() {
+    _liveMilesTimer?.cancel();
     if (!tracking) return;
     liveMiles = _tracker.currentMiles;
     notifyListeners();
@@ -505,7 +513,12 @@ class AppState extends ChangeNotifier {
         isAuto: _tracker.isAutoStarted,
       ),
     );
-    Future.delayed(const Duration(milliseconds: 500), _pollLiveMiles);
+    _liveMilesTimer = Timer(const Duration(milliseconds: 500), _pollLiveMiles);
+  }
+
+  void _stopLiveMilesPoll() {
+    _liveMilesTimer?.cancel();
+    _liveMilesTimer = null;
   }
 
   Future<Trip?> stopTracking({
@@ -517,6 +530,7 @@ class AppState extends ChangeNotifier {
     final result = _tracker.stop();
     tracking = false;
     liveMiles = 0;
+    _stopLiveMilesPoll();
     notifyListeners();
 
     await _lockScreen.publishImmediate(tracking: false);
@@ -634,6 +648,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _stopLiveMilesPoll();
     _billing.dispose();
     _battery.removeListener(notifyListeners);
     _carBluetooth.removeListener(_onPowerGateChanged);

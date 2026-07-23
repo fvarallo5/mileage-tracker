@@ -120,6 +120,7 @@ class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   VoiceCommandService? _voiceCommands;
   AppState? _appState;
+  bool _presentingFunnel = false;
 
   static const _screens = [
     TrackScreen(),
@@ -138,6 +139,7 @@ class _HomeShellState extends State<HomeShell> {
   Future<void> _setupVoiceCommands() async {
     final state = context.read<AppState>();
     _appState = state;
+    state.addListener(_onAppStateChanged);
     _voiceCommands = VoiceCommandService(
       onStartTrip: state.startTrackingFromVoice,
       onStopTrip: state.stopTrackingFromVoice,
@@ -147,6 +149,30 @@ class _HomeShellState extends State<HomeShell> {
 
     // Lock-screen notification actions surface the same feedback as voice.
     state.lockScreen.lastMessage.addListener(_onLockScreenMessage);
+  }
+
+  void _onAppStateChanged() {
+    final state = _appState;
+    if (state == null || !mounted) return;
+    _maybePresentFunnel(state);
+  }
+
+  void _maybePresentFunnel(AppState state) {
+    final prompt = state.pendingFunnelPrompt;
+    if (prompt == null || _presentingFunnel || state.isPremium) return;
+    _presentingFunnel = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        _presentingFunnel = false;
+        return;
+      }
+      final p = state.pendingFunnelPrompt;
+      state.consumeFunnelPrompt();
+      if (p != null) {
+        await FunnelFlow.present(context, state, p);
+      }
+      _presentingFunnel = false;
+    });
   }
 
   void _onVoiceMessage() {
@@ -171,6 +197,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
+    _appState?.removeListener(_onAppStateChanged);
     _voiceCommands?.lastMessage.removeListener(_onVoiceMessage);
     _appState?.lockScreen.lastMessage.removeListener(_onLockScreenMessage);
     super.dispose();
@@ -183,16 +210,6 @@ class _HomeShellState extends State<HomeShell> {
 
     return Consumer<AppState>(
       builder: (context, state, _) {
-        final prompt = state.pendingFunnelPrompt;
-        if (prompt != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!context.mounted) return;
-            final p = state.pendingFunnelPrompt;
-            if (p == null) return;
-            state.consumeFunnelPrompt();
-            FunnelFlow.present(context, state, p);
-          });
-        }
         return Scaffold(
           backgroundColor: theme.scaffoldBackgroundColor,
           body: SafeArea(

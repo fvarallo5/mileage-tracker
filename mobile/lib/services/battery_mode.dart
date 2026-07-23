@@ -82,4 +82,26 @@ extension BatteryModeX on BatteryMode {
         BatteryMode.balanced => 12,
         BatteryMode.accuracy => 8,
       };
+
+  /// Android poll interval while a trip is actively recording miles.
+  int get activeIntervalSeconds => switch (this) {
+        BatteryMode.batterySaver => 8,
+        BatteryMode.balanced => 4,
+        BatteryMode.accuracy => 2,
+      };
+
+  /// Auto-detect: ignore "parked" until the trip has run at least this long.
+  /// Prevents traffic-light false ends right after start.
+  int get minActiveTripSeconds => switch (this) {
+        BatteryMode.batterySaver => 120,
+        BatteryMode.balanced => 90,
+        BatteryMode.accuracy => 60,
+      };
+
+  /// Auto-detect: also require this much ground before auto-stop is allowed.
+  double get minActiveTripMeters => switch (this) {
+        BatteryMode.batterySaver => 250,
+        BatteryMode.balanced => 180,
+        BatteryMode.accuracy => 120,
+      };
 }

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../config/app_config.dart';
+import '../utils/stream_restart_scheduler.dart';
 import 'battery_mode.dart';
 
 /// High-level phase for UI status chips.
@@ -49,17 +50,22 @@ class AutoDetectService extends ChangeNotifier {
   static const postTripCooldown = Duration(seconds: 45);
 
   StreamSubscription<Position>? _subscription;
+  final _restart = StreamRestartScheduler();
   bool _monitoring = false;
   bool _tripActive = false;
+  bool _startInFlight = false;
   DateTime? _drivingSince;
   DateTime? _stoppedSince;
   DateTime? _cooldownUntil;
+  DateTime? _tripStartedAt;
   Position? _lastPosition;
   Position? _startAnchor; // first good sample in a start-confirm window
   double _startDistanceMeters = 0;
   Position? _stopAnchor;
   double _stopDistanceMeters = 0;
-  BatteryMode _mode = BatteryMode.batterySaver;
+  Position? _activeAnchor;
+  double _activeDistanceMeters = 0;
+  BatteryMode _mode = BatteryMode.balanced;
   AutoDetectPhase _phase = AutoDetectPhase.off;
   String? _statusDetail;
   double? _lastSpeedMps;
@@ -87,7 +93,7 @@ class AutoDetectService extends ChangeNotifier {
     }
   }
 
-  Future<void> startMonitoring({BatteryMode mode = BatteryMode.batterySaver}) async {
+  Future<void> startMonitoring({BatteryMode mode = BatteryMode.balanced}) async {
     _mode = mode;
     if (_monitoring) {
       await _restartStream();
@@ -96,8 +102,11 @@ class AutoDetectService extends ChangeNotifier {
     }
     _monitoring = true;
     _tripActive = false;
+    _startInFlight = false;
+    _restart.reset();
     _resetStartWindow();
     _resetStopWindow();
+    _resetActiveDistance();
     await _restartStream();
     _setPhase(AutoDetectPhase.watching);
   }
@@ -111,15 +120,36 @@ class AutoDetectService extends ChangeNotifier {
 
   Future<void> _restartStream() async {
     await _subscription?.cancel();
+    _restart.cancel();
     _subscription = Geolocator.getPositionStream(
       locationSettings: _idleLocationSettings(),
     ).listen(
-      _onPosition,
-      onError: (Object e) {
-        _statusDetail = 'Location error — check permissions';
-        notifyListeners();
+      (position) {
+        _restart.reset();
+        _onPosition(position);
       },
+      onError: (Object e) {
+        _statusDetail = 'Location error — retrying…';
+        notifyListeners();
+        _scheduleIdleStreamRestart();
+      },
+      onDone: () {
+        if (_monitoring && !_tripActive) _scheduleIdleStreamRestart();
+      },
+      cancelOnError: false,
     );
+  }
+
+  void _scheduleIdleStreamRestart() {
+    if (!_monitoring || _tripActive) return;
+    if (_restart.exhausted) {
+      _statusDetail = 'Location unavailable — check permissions';
+      notifyListeners();
+      return;
+    }
+    _restart.schedule(() {
+      if (_monitoring && !_tripActive) unawaited(_restartStream());
+    });
   }
 
   /// Background-capable settings so watching continues when the app is not open.
@@ -156,18 +186,26 @@ class AutoDetectService extends ChangeNotifier {
 
   void pauseForActiveTrip() {
     _tripActive = true;
+    _startInFlight = false;
+    _tripStartedAt = DateTime.now();
     _resetStartWindow();
     _resetStopWindow();
+    _resetActiveDistance();
     _setPhase(AutoDetectPhase.tripActive);
   }
 
   void resumeAfterTrip() {
     _tripActive = false;
+    _startInFlight = false;
+    _tripStartedAt = null;
     _cooldownUntil = DateTime.now().add(postTripCooldown);
     _resetStartWindow();
     _resetStopWindow();
+    _resetActiveDistance();
     if (_monitoring) {
       _setPhase(AutoDetectPhase.watching, detail: 'Cooldown before next auto-start');
+      // Resume idle watch stream after trip GPS took over.
+      unawaited(_restartStream());
     } else {
       _setPhase(AutoDetectPhase.off);
     }
@@ -176,10 +214,14 @@ class AutoDetectService extends ChangeNotifier {
   Future<void> stopMonitoring() async {
     _monitoring = false;
     _tripActive = false;
+    _startInFlight = false;
+    _tripStartedAt = null;
     _resetStartWindow();
     _resetStopWindow();
+    _resetActiveDistance();
     _lastPosition = null;
     _lastSpeedMps = null;
+    _restart.cancel();
     await _subscription?.cancel();
     _subscription = null;
     _setPhase(AutoDetectPhase.off);
@@ -256,9 +298,13 @@ class AutoDetectService extends ChangeNotifier {
           '${distOk ? '' : ' · need ${minStartDistanceMeters.round()} m'}',
     );
 
-    if (timeOk && distOk) {
+    if (timeOk && distOk && !_startInFlight) {
       _tripActive = true;
+      _startInFlight = true;
+      _tripStartedAt = now;
       _resetStartWindow();
+      _resetActiveDistance();
+      _activeAnchor = position;
       _setPhase(AutoDetectPhase.tripActive, detail: 'Starting GPS trip…');
       // Fire-and-forget; AppState owns async start.
       unawaited(onTripStarted());
@@ -274,11 +320,50 @@ class AutoDetectService extends ChangeNotifier {
     _lastSpeedMps = speed;
     final now = DateTime.now();
 
+    // Accumulate path length for min-distance gate before auto-stop.
+    if (_activeAnchor != null) {
+      final step = Geolocator.distanceBetween(
+        _activeAnchor!.latitude,
+        _activeAnchor!.longitude,
+        position.latitude,
+        position.longitude,
+      );
+      if (step > 3 && step < 500) {
+        _activeDistanceMeters += step;
+        _activeAnchor = position;
+      } else if (step >= 500) {
+        // Teleport — reset anchor without adding.
+        _activeAnchor = position;
+      }
+    } else {
+      _activeAnchor = position;
+    }
+
     if (speed > stopSpeedMps) {
       if (_stoppedSince != null) {
         _resetStopWindow();
         _setPhase(AutoDetectPhase.tripActive, detail: 'Moving again');
       }
+      _lastPosition = position;
+      return;
+    }
+
+    // Too early / too short — don't start the parked timer yet.
+    final tripAgeSec = _tripStartedAt == null
+        ? 0
+        : now.difference(_tripStartedAt!).inSeconds;
+    final minSec = _mode.minActiveTripSeconds;
+    final minM = _mode.minActiveTripMeters;
+    if (tripAgeSec < minSec || _activeDistanceMeters < minM) {
+      _resetStopWindow();
+      final needSec = math.max(0, minSec - tripAgeSec);
+      final needM = math.max(0, (minM - _activeDistanceMeters).round());
+      _setPhase(
+        AutoDetectPhase.tripActive,
+        detail: needSec > 0
+            ? 'Trip young · ${needSec}s before auto-end'
+            : 'Need ${needM}m more before auto-end',
+      );
       _lastPosition = position;
       return;
     }
@@ -342,6 +427,11 @@ class AutoDetectService extends ChangeNotifier {
     _stopDistanceMeters = 0;
   }
 
+  void _resetActiveDistance() {
+    _activeAnchor = null;
+    _activeDistanceMeters = 0;
+  }
+
   void _setPhase(AutoDetectPhase phase, {String? detail}) {
     final changed = _phase != phase || _statusDetail != detail;
     _phase = phase;
@@ -380,6 +470,7 @@ class AutoDetectService extends ChangeNotifier {
   @override
   void dispose() {
     _subscription?.cancel();
+    _restart.dispose();
     super.dispose();
   }
 }

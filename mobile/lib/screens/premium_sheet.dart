@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_config.dart';
+import '../config/billing_config.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bottom_sheet.dart';
@@ -28,6 +29,7 @@ class _PremiumSheetContent extends StatelessWidget {
     return Consumer<AppState>(
       builder: (context, state, _) {
         final billing = state.billing;
+        final annual = billing.preferAnnual;
 
         return AppBottomSheet(
           title: 'TrekTrack Pro',
@@ -60,36 +62,30 @@ class _PremiumSheetContent extends StatelessWidget {
               subtitle: 'Schedule C + TurboTax mileage CSVs from the Reports tab.',
             ),
             const SizedBox(height: AppSpacing.lg),
-            Builder(
-              builder: (ctx) {
-                final p = ThemePalette.of(ctx);
-                return Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(AppSpacing.card),
-                  decoration: BoxDecoration(
-                    color: p.surface3,
-                    borderRadius: BorderRadius.circular(AppRadii.md),
-                    border: Border.all(color: p.border),
+            _PlanOption(
+              selected: annual,
+              badge: 'Best value',
+              title: 'Annual',
+              price: billing.loadingProducts ? '…' : billing.annualPriceLabel,
+              detail: billing.annualPerMonthLabel,
+              onTap: () => billing.setPreferAnnual(true),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _PlanOption(
+              selected: !annual,
+              title: 'Monthly',
+              price: billing.loadingProducts ? '…' : billing.monthlyPriceLabel,
+              detail: 'Billed monthly',
+              onTap: () => billing.setPreferAnnual(false),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              BillingConfig.trialDetailLabel,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: 12,
+                    color: AppColors.green,
                   ),
-                  child: Column(
-                    children: [
-                      Text(
-                        billing.loadingProducts ? 'Loading price…' : billing.priceLabel,
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.amber,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Cancel anytime',
-                        style: TextStyle(color: p.textMuted, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                );
-              },
             ),
             if (billing.lastError != null) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -118,7 +114,17 @@ class _PremiumSheetContent extends StatelessWidget {
                         color: Colors.black,
                       ),
                     )
-                  : const Text('Subscribe to Pro'),
+                  : Text(
+                      'Start ${BillingConfig.trialDays}-day free trial',
+                    ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              annual
+                  ? 'Then ${billing.annualPriceLabel}'
+                  : 'Then ${billing.monthlyPriceLabel}',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
             ),
             const SizedBox(height: AppSpacing.sm),
             TextButton(
@@ -143,8 +149,10 @@ class _PremiumSheetContent extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               Text(
                 billing.storeAvailable
-                    ? 'Store connected. Create products in App Store Connect / Play Console to test real purchases.'
-                    : 'Store unavailable here — use the debug unlock to test Pro locally.',
+                    ? (billing.selectedProduct != null
+                        ? 'Store OK · products loaded'
+                        : 'Store connected but products not found yet.')
+                    : 'Store unavailable — use debug unlock offline.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11),
               ),
@@ -174,6 +182,108 @@ class _PremiumSheetContent extends StatelessWidget {
     if (!context.mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _PlanOption extends StatelessWidget {
+  final bool selected;
+  final String? badge;
+  final String title;
+  final String price;
+  final String detail;
+  final VoidCallback onTap;
+
+  const _PlanOption({
+    required this.selected,
+    this.badge,
+    required this.title,
+    required this.price,
+    required this.detail,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.card),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.amber.withValues(alpha: p.isLight ? 0.12 : 0.14)
+                : p.surface3,
+            borderRadius: BorderRadius.circular(AppRadii.md),
+            border: Border.all(
+              color: selected ? AppColors.amber : p.border,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: selected ? AppColors.amber : p.textMuted,
+                size: 22,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        if (badge != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.amber,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              badge!,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      detail,
+                      style: TextStyle(fontSize: 12, color: p.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                price,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: selected ? AppColors.amber : p.text,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

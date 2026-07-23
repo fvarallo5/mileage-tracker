@@ -6,14 +6,15 @@ import 'battery_mode.dart';
 class BatteryService extends ChangeNotifier {
   static const _key = 'battery_mode';
 
-  BatteryMode mode = BatteryMode.batterySaver;
+  /// Balanced is the everyday default (better start/stop than pure saver).
+  BatteryMode mode = BatteryMode.balanced;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
     mode = BatteryMode.values.firstWhere(
       (m) => m.name == raw,
-      orElse: () => BatteryMode.batterySaver,
+      orElse: () => BatteryMode.balanced,
     );
     notifyListeners();
   }
