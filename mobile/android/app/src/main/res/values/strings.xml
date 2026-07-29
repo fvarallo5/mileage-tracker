@@ -4,4 +4,6 @@
     <string name="shortcut_start_trip_long">Start GPS trip tracking</string>
     <string name="shortcut_stop_trip_short">Stop trip</string>
     <string name="shortcut_stop_trip_long">Stop trip and save mileage</string>
+    <string name="widget_description">Trip status, today\'s miles, and start/stop controls</string>
+    <string name="widget_name">TrekTrack</string>
 </resources>

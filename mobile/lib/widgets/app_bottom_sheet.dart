@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 
 class AppBottomSheet extends StatelessWidget {
@@ -75,8 +77,15 @@ class AppBottomSheet extends StatelessWidget {
   }
 }
 
+/// Shows a modal sheet that can still read [AppState] via Provider.
+///
+/// Modal routes sit beside [HomeShell], not under the AppState provider, so we
+/// re-attach the instance from [context] for Consumers inside the sheet.
 Future<T?> showAppBottomSheet<T>(BuildContext context, Widget child) {
   final p = ThemePalette.of(context);
+  final appState = context.read<AppState>();
+  final parentTheme = Theme.of(context);
+
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
@@ -85,6 +94,19 @@ Future<T?> showAppBottomSheet<T>(BuildContext context, Widget child) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
     ),
-    builder: (_) => child,
+    builder: (_) => ChangeNotifierProvider<AppState>.value(
+      value: appState,
+      child: Theme(
+        data: parentTheme.copyWith(
+          listTileTheme: ListTileThemeData(
+            tileColor: Colors.transparent,
+            textColor: p.text,
+            iconColor: p.textMuted,
+            selectedTileColor: p.surface3,
+          ),
+        ),
+        child: child,
+      ),
+    ),
   );
 }

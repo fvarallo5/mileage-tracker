@@ -79,4 +79,9 @@ class AuthState extends ChangeNotifier {
     await _auth.signOut();
     notifyListeners();
   }
+
+  Future<void> signOutLocal() async {
+    await _auth.signOutLocal();
+    notifyListeners();
+  }
 }

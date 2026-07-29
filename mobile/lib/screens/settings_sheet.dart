@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import '../config/app_config.dart';
 import '../providers/app_state.dart';
 import '../providers/auth_state.dart';
-import '../screens/places_sheet.dart';
+import '../screens/data_controls_sheet.dart';
 import '../screens/premium_sheet.dart';
 import '../screens/work_hours_sheet.dart';
 import '../services/battery_mode.dart';
@@ -154,6 +154,17 @@ class _SettingsSheetBody extends StatelessWidget {
               value: state.lockScreenControlsEnabled,
               onChanged: (v) => state.setLockScreenControlsEnabled(v),
             ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.widgets_outlined, color: p.textMuted, size: 22),
+              title: const Text('Home screen widget'),
+              subtitle: Text(
+                Platform.isAndroid
+                    ? 'Long-press home → Widgets → TrekTrack. Shows status, today\'s miles, Start/Stop.'
+                    : 'Add TrekTrack from the widget gallery (iOS Widget Extension required in Xcode).',
+                style: TextStyle(fontSize: 12, color: p.textMuted),
+              ),
+            ),
             SegmentedButton<BatteryMode>(
               segments: [
                 for (final mode in BatteryMode.values)
@@ -207,6 +218,21 @@ class _SettingsSheetBody extends StatelessWidget {
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
+              title: const Text('Only while charging'),
+              subtitle: Text(
+                state.chargingGateEnabled
+                    ? state.chargingGate.statusLabel
+                    : 'Sleep GPS until the phone is plugged in (car USB/charger). '
+                        'Wall chargers also count — phones can\'t tell them apart.',
+                style: TextStyle(fontSize: 12, color: p.textMuted),
+              ),
+              value: state.chargingGateEnabled,
+              onChanged: state.autoDetectEnabled
+                  ? (v) => state.setChargingGate(v)
+                  : null,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
               title: const Text('Only when in a vehicle'),
               subtitle: Text(
                 state.activityGateEnabled
@@ -233,19 +259,6 @@ class _SettingsSheetBody extends StatelessWidget {
               trailing: Icon(Icons.chevron_right, color: p.textMuted),
               onTap: () => showWorkHoursSheet(context),
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.place_outlined, color: p.textMuted, size: 22),
-              title: const Text('Places'),
-              subtitle: Text(
-                state.places.places.isEmpty
-                    ? 'Home, warehouse — skip auto-start or set purpose'
-                    : '${state.places.places.length} saved',
-                style: TextStyle(fontSize: 12, color: p.textMuted),
-              ),
-              trailing: Icon(Icons.chevron_right, color: p.textMuted),
-              onTap: () => showPlacesSheet(context),
-            ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Snap miles to roads'),
@@ -256,6 +269,20 @@ class _SettingsSheetBody extends StatelessWidget {
               ),
               value: state.mapMatchEnabled,
               onChanged: (v) => state.setMapMatchEnabled(v),
+            ),
+
+            const SizedBox(height: AppSpacing.md),
+            _SectionLabel('Your data'),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.folder_shared_outlined, color: p.textMuted, size: 22),
+              title: const Text('Download, erase, or delete account'),
+              subtitle: Text(
+                'Export all trips, clear history, or remove this login',
+                style: TextStyle(fontSize: 12, color: p.textMuted),
+              ),
+              trailing: Icon(Icons.chevron_right, color: p.textMuted),
+              onTap: () => showDataControlsSheet(context),
             ),
 
             const SizedBox(height: AppSpacing.md),

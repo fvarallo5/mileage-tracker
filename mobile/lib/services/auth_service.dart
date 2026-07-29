@@ -76,4 +76,13 @@ class AuthService {
   Future<void> signOut() async {
     await _client.auth.signOut();
   }
+
+  /// Sign out after account wipe. Safe if the session was already revoked.
+  Future<void> signOutLocal() async {
+    try {
+      await _client.auth.signOut();
+    } catch (_) {
+      // Session may already be invalid after delete_own_account.
+    }
+  }
 }

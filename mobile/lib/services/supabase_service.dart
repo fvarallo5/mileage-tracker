@@ -147,6 +147,48 @@ class SupabaseService {
     await _client.from('trips').delete().eq('id', id);
   }
 
+  /// Delete every trip for the signed-in user.
+  Future<int> deleteAllTrips() async {
+    final userId = _userId;
+    if (userId == null) throw ApiException('Not signed in');
+
+    final existing = await getTrips();
+    if (existing.isEmpty) return 0;
+
+    await _client.from('trips').delete().eq('user_id', userId);
+    return existing.length;
+  }
+
+  /// Wipe cloud rows for this user, then delete the auth user via RPC.
+  ///
+  /// Requires migration `005_delete_own_account.sql`. Falls back to deleting
+  /// table rows only if the RPC is missing (caller should still sign out).
+  Future<void> deleteAccountData() async {
+    final userId = _userId;
+    if (userId == null) throw ApiException('Not signed in');
+
+    try {
+      await _client.rpc('delete_own_account');
+      return;
+    } on PostgrestException catch (e) {
+      final m = e.message.toLowerCase();
+      final missing = m.contains('delete_own_account') ||
+          m.contains('could not find') ||
+          m.contains('schema cache') ||
+          m.contains('does not exist');
+      if (!missing) rethrow;
+    }
+
+    // Fallback: delete app data the client can reach (auth user remains until RPC).
+    await _client.from('trips').delete().eq('user_id', userId);
+    try {
+      await _client.from('entitlements').delete().eq('user_id', userId);
+    } catch (_) {}
+    try {
+      await _client.from('settings').delete().eq('user_id', userId);
+    } catch (_) {}
+  }
+
   Future<ReportSummary> getReportSummary() async {
     final trips = await getTrips();
     return ReportService.buildSummary(trips);

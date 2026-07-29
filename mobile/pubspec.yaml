@@ -28,6 +28,8 @@ dependencies:
   share_plus: ^13.2.1
   path_provider: ^2.1.6
   flutter_local_notifications: ^22.0.1
+  home_widget: ^0.9.3
+  battery_plus: ^7.1.1
 
 dev_dependencies:
   integration_test:

@@ -143,6 +143,26 @@ class _AutoDetectCard extends StatelessWidget {
                   ],
                 ),
               ),
+            if (state.chargingGateEnabled && state.isPhonePluggedIn)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.electrical_services, size: 14, color: AppColors.green),
+                    SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'Charger connected',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.green,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (state.activityGateEnabled && state.activityInVehicle)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -269,6 +289,7 @@ class _AutoDetectCard extends StatelessWidget {
       };
     }
     if (state.isWaitingOnPowerGate) {
+      if (!state.chargingGate.allowsAutoDetectWatch) return 'Charger';
       if (!state.carBluetooth.allowsAutoDetectWatch) return 'Car BT';
       if (!state.activityRecognition.allowsAutoDetectWatch) return 'Motion';
       return 'Wait';
