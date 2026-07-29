@@ -16,7 +16,7 @@ class AppConfig {
 
   /// Bump when legal copy changes (for future acceptance logging).
   static const legalTermsVersion = '1.1';
-  static const legalPrivacyVersion = '1.1';
+  static const legalPrivacyVersion = '1.2';
 
   static const legalEntityName = 'UltraForge LLC';
   static const legalEntityState = 'New Jersey';

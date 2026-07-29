@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +6,7 @@ import '../config/app_config.dart';
 import '../providers/auth_state.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/open_url.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -187,13 +189,43 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   Text(
-                    'Guest mode keeps data on this device only. '
-                    'Create an account to sync phone, tablet, and new installs.',
+                    'Guest mode uses a temporary login on this device. '
+                    'Create an account to keep access across reinstalls.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           fontSize: 12,
-                          color: AppColors.textMuted,
+                          color: p.textMuted,
                         ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text.rich(
+                    TextSpan(
+                      style: TextStyle(fontSize: 12, color: p.textMuted, height: 1.35),
+                      children: [
+                        const TextSpan(text: 'By continuing you will be asked to agree to our '),
+                        TextSpan(
+                          text: 'Terms',
+                          style: TextStyle(
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()..onTap = openTermsOfService,
+                        ),
+                        const TextSpan(text: ' and '),
+                        TextSpan(
+                          text: 'Privacy Policy',
+                          style: TextStyle(
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()..onTap = openPrivacyPolicy,
+                        ),
+                        const TextSpan(text: '.'),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),

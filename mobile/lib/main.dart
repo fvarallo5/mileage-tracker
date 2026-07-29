@@ -7,11 +7,13 @@ import 'config/supabase_config.dart';
 import 'providers/app_state.dart';
 import 'providers/auth_state.dart';
 import 'screens/auth_screen.dart';
+import 'screens/legal_acceptance_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_sheet.dart';
 import 'screens/track_screen.dart';
 import 'screens/trips_screen.dart';
 import 'services/auth_service.dart';
+import 'services/legal_acceptance_service.dart';
 import 'services/supabase_service.dart';
 import 'services/theme_service.dart';
 import 'services/voice_command_service.dart';
@@ -32,11 +34,15 @@ Future<void> main() async {
   final themeService = ThemeService();
   await themeService.load();
 
+  final legal = LegalAcceptanceService();
+  await legal.load();
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthState(AuthService())..init()),
         ChangeNotifierProvider.value(value: themeService),
+        ChangeNotifierProvider.value(value: legal),
       ],
       child: const TrekTrackApp(),
     ),
@@ -62,8 +68,15 @@ class TrekTrackApp extends StatelessWidget {
   }
 }
 
-class _AuthGate extends StatelessWidget {
+class _AuthGate extends StatefulWidget {
   const _AuthGate();
+
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  String? _reconciledUserId;
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +85,8 @@ class _AuthGate extends StatelessWidget {
     }
 
     final auth = context.watch<AuthState>();
+    final legal = context.watch<LegalAcceptanceService>();
+
     if (auth.loading) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -79,8 +94,30 @@ class _AuthGate extends StatelessWidget {
       );
     }
     if (!auth.isSignedIn) {
+      _reconciledUserId = null;
       return const AuthScreen();
     }
+
+    // After sign-in, sync acceptance with Supabase once per user session.
+    final uid = auth.userId;
+    if (uid != null && uid != _reconciledUserId && legal.loaded) {
+      _reconciledUserId = uid;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<LegalAcceptanceService>().reconcileWithServer();
+      });
+    }
+
+    if (!legal.loaded || legal.reconciling) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (!legal.hasAcceptedCurrent) {
+      return const LegalAcceptanceScreen();
+    }
+
     return ChangeNotifierProvider(
       key: ValueKey(auth.userId),
       create: (_) => AppState(SupabaseService())..initialize(),

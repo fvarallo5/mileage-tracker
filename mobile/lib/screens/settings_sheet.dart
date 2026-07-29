@@ -11,6 +11,7 @@ import '../screens/premium_sheet.dart';
 import '../screens/work_hours_sheet.dart';
 import '../services/battery_mode.dart';
 import '../services/irs_mileage_rate.dart';
+import '../services/legal_acceptance_service.dart';
 import '../services/theme_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/open_url.dart';
@@ -52,10 +53,15 @@ class _SettingsSheetBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([state, themeService]),
+      listenable: Listenable.merge([
+        state,
+        themeService,
+        context.read<LegalAcceptanceService>(),
+      ]),
       builder: (context, _) {
         final p = context.palette;
         final irs = IrsMileageRate.current;
+        final legal = context.watch<LegalAcceptanceService>();
 
         return AppBottomSheet(
           title: 'Settings',
@@ -420,6 +426,13 @@ class _SettingsSheetBody extends StatelessWidget {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.gavel_outlined, color: AppColors.accent),
               title: const Text('Terms of Service'),
+              subtitle: legal.hasAcceptedCurrent
+                  ? Text(
+                      'Accepted v${legal.acceptedTermsVersion}'
+                      '${legal.acceptedAt != null ? ' · ${_formatAcceptedAt(legal.acceptedAt!)}' : ''}',
+                      style: TextStyle(fontSize: 12, color: p.textMuted),
+                    )
+                  : null,
               trailing: Icon(Icons.open_in_new, size: 16, color: p.textMuted),
               onTap: openTermsOfService,
             ),
@@ -427,6 +440,12 @@ class _SettingsSheetBody extends StatelessWidget {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.privacy_tip_outlined, color: AppColors.accent),
               title: const Text('Privacy Policy'),
+              subtitle: legal.hasAcceptedCurrent
+                  ? Text(
+                      'Accepted v${legal.acceptedPrivacyVersion}',
+                      style: TextStyle(fontSize: 12, color: p.textMuted),
+                    )
+                  : null,
               trailing: Icon(Icons.open_in_new, size: 16, color: p.textMuted),
               onTap: openPrivacyPolicy,
             ),
@@ -451,6 +470,14 @@ class _SettingsSheetBody extends StatelessWidget {
       },
     );
   }
+}
+
+String _formatAcceptedAt(DateTime utc) {
+  final local = utc.toLocal();
+  final y = local.year.toString().padLeft(4, '0');
+  final m = local.month.toString().padLeft(2, '0');
+  final d = local.day.toString().padLeft(2, '0');
+  return '$y-$m-$d';
 }
 
 class _SectionLabel extends StatelessWidget {

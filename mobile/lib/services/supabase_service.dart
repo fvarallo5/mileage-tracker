@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/import_formats.dart';
 import '../models/entitlement.dart';
 import '../models/import_result.dart';
+import '../models/legal_acceptance.dart';
 import '../models/period_report.dart';
 import '../models/trip.dart';
 import 'csv_importer.dart';
@@ -161,8 +162,8 @@ class SupabaseService {
 
   /// Wipe cloud rows for this user, then delete the auth user via RPC.
   ///
-  /// Requires migration `005_delete_own_account.sql`. Falls back to deleting
-  /// table rows only if the RPC is missing (caller should still sign out).
+  /// Requires migration `005_delete_own_account.sql` (and `006` for legal tables).
+  /// Falls back to deleting table rows only if the RPC is missing.
   Future<void> deleteAccountData() async {
     final userId = _userId;
     if (userId == null) throw ApiException('Not signed in');
@@ -182,11 +183,65 @@ class SupabaseService {
     // Fallback: delete app data the client can reach (auth user remains until RPC).
     await _client.from('trips').delete().eq('user_id', userId);
     try {
+      await _client.from('legal_acceptance_events').delete().eq('user_id', userId);
+    } catch (_) {}
+    try {
+      await _client.from('legal_acceptances').delete().eq('user_id', userId);
+    } catch (_) {}
+    try {
       await _client.from('entitlements').delete().eq('user_id', userId);
     } catch (_) {}
     try {
       await _client.from('settings').delete().eq('user_id', userId);
     } catch (_) {}
+  }
+
+  Future<LegalAcceptance?> fetchLegalAcceptance() async {
+    final userId = _userId;
+    if (userId == null) return null;
+
+    try {
+      final row = await _client
+          .from('legal_acceptances')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+      if (row == null) return null;
+      return LegalAcceptance.fromJson(Map<String, dynamic>.from(row));
+    } on PostgrestException catch (e) {
+      if (_isMissingLegalTable(e)) return null;
+      rethrow;
+    }
+  }
+
+  /// Upsert latest acceptance and append an event row for history.
+  Future<void> upsertLegalAcceptance(LegalAcceptance record) async {
+    final userId = _userId;
+    if (userId == null) throw ApiException('Not signed in');
+
+    try {
+      await _client
+          .from('legal_acceptances')
+          .upsert(record.toUpsertPayload(userId));
+      await _client
+          .from('legal_acceptance_events')
+          .insert(record.toEventPayload(userId));
+    } on PostgrestException catch (e) {
+      if (_isMissingLegalTable(e)) {
+        throw ApiException(
+          'Legal acceptances table missing. Run supabase/migrations/006_legal_acceptances.sql',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  bool _isMissingLegalTable(PostgrestException e) {
+    final m = e.message.toLowerCase();
+    return (m.contains('legal_acceptance') || m.contains('legal_acceptances')) &&
+        (m.contains('does not exist') ||
+            m.contains('schema cache') ||
+            m.contains('could not find'));
   }
 
   Future<ReportSummary> getReportSummary() async {
