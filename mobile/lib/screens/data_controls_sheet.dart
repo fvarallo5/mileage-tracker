@@ -92,6 +92,13 @@ class _DataControlsBodyState extends State<_DataControlsBody> {
         const SizedBox(height: AppSpacing.md),
         ListTile(
           contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.gavel_outlined, color: p.textMuted, size: 20),
+          title: const Text('Terms of Service'),
+          trailing: Icon(Icons.open_in_new, size: 16, color: p.textMuted),
+          onTap: () => openUrl(AppConfig.termsOfServiceUrl),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.privacy_tip_outlined, color: p.textMuted, size: 20),
           title: const Text('Privacy policy'),
           trailing: Icon(Icons.open_in_new, size: 16, color: p.textMuted),

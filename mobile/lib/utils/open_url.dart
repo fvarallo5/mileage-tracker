@@ -12,4 +12,6 @@ Future<bool> openUrl(String url) async {
 
 Future<bool> openPrivacyPolicy() => openUrl(AppConfig.privacyPolicyUrl);
 
+Future<bool> openTermsOfService() => openUrl(AppConfig.termsOfServiceUrl);
+
 Future<bool> openSupportEmail() => openUrl('mailto:${AppConfig.supportEmail}');

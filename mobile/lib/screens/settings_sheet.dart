@@ -418,6 +418,13 @@ class _SettingsSheetBody extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             ListTile(
               contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.gavel_outlined, color: AppColors.accent),
+              title: const Text('Terms of Service'),
+              trailing: Icon(Icons.open_in_new, size: 16, color: p.textMuted),
+              onTap: openTermsOfService,
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.privacy_tip_outlined, color: AppColors.accent),
               title: const Text('Privacy Policy'),
               trailing: Icon(Icons.open_in_new, size: 16, color: p.textMuted),

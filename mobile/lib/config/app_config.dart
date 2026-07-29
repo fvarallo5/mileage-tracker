@@ -5,12 +5,21 @@ import 'supabase_config.dart';
 /// App-wide constants for TrekTrack.
 class AppConfig {
   static const privacyUrlOverride = String.fromEnvironment('PRIVACY_URL');
+  static const termsUrlOverride = String.fromEnvironment('TERMS_URL');
 
-  /// Prefer the marketing site; jsDelivr fallback if DNS is not pointed yet.
+  /// Prefer the marketing site.
   static const productionPrivacyUrl = 'https://trektrack.pro/privacy.html';
+  static const productionTermsUrl = 'https://trektrack.pro/terms.html';
 
   /// Free tier: auto-detect trips allowed per calendar month.
   static const freeAutoTripsPerMonth = 30;
+
+  /// Bump when legal copy changes (for future acceptance logging).
+  static const legalTermsVersion = '1.1';
+  static const legalPrivacyVersion = '1.1';
+
+  static const legalEntityName = 'UltraForge LLC';
+  static const legalEntityState = 'New Jersey';
 
   static bool get isRelease => kReleaseMode;
 
@@ -18,6 +27,9 @@ class AppConfig {
 
   static String get privacyPolicyUrl =>
       privacyUrlOverride.isNotEmpty ? privacyUrlOverride : productionPrivacyUrl;
+
+  static String get termsOfServiceUrl =>
+      termsUrlOverride.isNotEmpty ? termsUrlOverride : productionTermsUrl;
 
   static String get supabaseUrl => SupabaseConfig.url;
 
