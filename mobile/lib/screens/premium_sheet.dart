@@ -127,6 +127,25 @@ class _PremiumSheetContent extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
             ),
             const SizedBox(height: AppSpacing.sm),
+            Text(
+              AppConfig.taxDisclaimerShort,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: 11,
+                    height: 1.3,
+                  ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Subscriptions renew automatically until canceled in your '
+              'App Store or Play Store account settings. Manage or cancel anytime there.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: 11,
+                    height: 1.3,
+                  ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
             TextButton(
               onPressed: billing.restoring ? null : () => _restore(context, state),
               child: billing.restoring

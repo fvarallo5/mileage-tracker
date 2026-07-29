@@ -39,7 +39,15 @@ class AppConfig {
 
   static String get appName => 'TrekTrack';
 
-  static String get appTagline => 'Audit-ready mileage. Built for the road.';
+  static String get appTagline => 'Mileage tracking for gig drivers. Built for the road.';
+
+  /// Shown near tax export, Pro paywall, and share sheets.
+  static const taxDisclaimer =
+      'Not tax, legal, or accounting advice. IRS rates and deduction totals are estimates. '
+      'You are responsible for classifying miles and what you file. Confirm with a tax professional.';
+
+  static const taxDisclaimerShort =
+      'Not tax advice. Confirm rates and filings with a tax professional.';
 
   /// OSRM Match base (no trailing path). Override for self-hosted routing.
   static const osrmBaseUrlOverride = String.fromEnvironment('OSRM_BASE_URL');

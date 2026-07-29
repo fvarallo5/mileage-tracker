@@ -29,15 +29,21 @@ class AppColors {
   static const lightTextMuted = Color(0xFF475569);
 
   static const uber = Color(0xFF000000);
+  static const uberEats = Color(0xFF06C167);
   static const doordash = Color(0xFFFF3008);
   static const lyft = Color(0xFFFF00BF);
   static const instacart = Color(0xFF43B02A);
+  static const amazonFlex = Color(0xFFFF9900);
+  static const gopuff = Color(0xFF00C2FF);
 
   static Color sourceColor(String source) => switch (source) {
         'uber' => const Color(0xFF5E5E5E),
+        'ubereats' => uberEats,
         'doordash' => doordash,
         'lyft' => lyft,
         'instacart' => instacart,
+        'amazonflex' => amazonFlex,
+        'gopuff' => gopuff,
         'gps' => accent,
         'autodetect' => amber,
         _ => surface3,

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../config/app_config.dart';
 import '../models/trip.dart';
 import 'irs_mileage_rate.dart';
 
@@ -44,7 +45,8 @@ class DataExportService {
             '${sorted.length} trips · '
             'Business ${businessMi.toStringAsFixed(1)} mi · '
             'Personal ${personalMi.toStringAsFixed(1)} mi.\n'
-            'This is a full data download, not a tax package.',
+            'This is a full data download, not a tax package.\n\n'
+            '${AppConfig.taxDisclaimerShort}',
       ),
     );
   }

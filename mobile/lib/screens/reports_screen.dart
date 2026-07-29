@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_config.dart';
 import '../models/period_report.dart';
 import '../providers/app_state.dart';
 import '../services/irs_mileage_rate.dart';
@@ -61,9 +62,19 @@ class ReportsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Business miles only (personal trips excluded). TurboTax-ready log '
-                      'and Schedule C summary for $taxYear.',
+                      'Business miles only (personal trips excluded). Mileage log and '
+                      'Schedule C–style summary for $taxYear. For your records or CPA — '
+                      'not a substitute for tax software or a preparer.',
                       style: TextStyle(fontSize: 13, color: p.textMuted, height: 1.35),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      AppConfig.taxDisclaimerShort,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: p.textMuted.withValues(alpha: 0.95),
+                        height: 1.3,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     FilledButton.icon(

@@ -12,9 +12,12 @@ final _currency = NumberFormat.currency(symbol: '\$');
 
 const _platforms = [
   ('uber', 'Uber', Icons.local_taxi, AppColors.uber),
+  ('ubereats', 'Uber Eats', Icons.fastfood, AppColors.uberEats),
   ('doordash', 'DoorDash', Icons.delivery_dining, AppColors.doordash),
   ('lyft', 'Lyft', Icons.directions_car, AppColors.lyft),
   ('instacart', 'Instacart', Icons.shopping_bag, AppColors.instacart),
+  ('amazonflex', 'Flex', Icons.local_shipping, AppColors.amazonFlex),
+  ('gopuff', 'GoPuff', Icons.nightlife, AppColors.gopuff),
   ('generic', 'Other', Icons.table_chart, AppColors.accent),
 ];
 
@@ -249,7 +252,8 @@ class _ImportScreenState extends State<ImportScreen> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
               labelText: 'Default miles (if CSV has no distance)',
-              helperText: 'DoorDash exports often need 2–3 mi per delivery',
+              helperText:
+                  'Use for DoorDash, Eats, Flex, GoPuff when distance is missing — GPS is still better for tax miles',
             ),
           ),
           const SizedBox(height: AppSpacing.lg),

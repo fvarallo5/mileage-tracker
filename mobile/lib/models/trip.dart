@@ -113,9 +113,12 @@ class Trip {
 
   String get sourceLabel => switch (source) {
         'uber' => 'Uber',
+        'ubereats' => 'Uber Eats',
         'doordash' => 'DoorDash',
         'lyft' => 'Lyft',
         'instacart' => 'Instacart',
+        'amazonflex' => 'Amazon Flex',
+        'gopuff' => 'GoPuff',
         'gps' => 'GPS',
         'autodetect' => 'Auto',
         _ => 'Manual',

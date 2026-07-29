@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
@@ -16,6 +17,16 @@
         android:label="TrekTrack"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!--
+          Location FGS is provided by geolocator_android (GeolocatorLocationService).
+          Re-declare type for Android 14+ merge clarity / Play policy.
+        -->
+        <service
+            android:name="com.baseflow.geolocator.GeolocatorLocationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            tools:node="merge" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

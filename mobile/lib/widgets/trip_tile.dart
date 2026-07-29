@@ -25,9 +25,12 @@ class TripTile extends StatelessWidget {
 
   IconData _sourceIcon() => switch (trip.source) {
         'uber' => Icons.local_taxi,
+        'ubereats' => Icons.fastfood,
         'doordash' => Icons.delivery_dining,
         'lyft' => Icons.directions_car,
         'instacart' => Icons.shopping_bag,
+        'amazonflex' => Icons.local_shipping,
+        'gopuff' => Icons.nightlife,
         'gps' => Icons.gps_fixed,
         'autodetect' => Icons.radar_rounded,
         _ => Icons.edit_road,

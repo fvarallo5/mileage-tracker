@@ -11,33 +11,91 @@ class CsvParseResult {
 }
 
 class CsvImporter {
-  static const _platforms = ['uber', 'doordash', 'lyft', 'instacart', 'generic'];
+  static const _platforms = [
+    'uber',
+    'ubereats',
+    'doordash',
+    'lyft',
+    'instacart',
+    'amazonflex',
+    'gopuff',
+    'generic',
+  ];
 
   static const _columnAliases = {
     'date': [
-      'date', 'trip date', 'trip request time', 'pickup time', 'dropoff time',
-      'delivery date', 'completed at', 'timestamp', 'start time', 'end time', 'time',
+      'date',
+      'trip date',
+      'trip request time',
+      'pickup time',
+      'dropoff time',
+      'delivery date',
+      'completed at',
+      'timestamp',
+      'start time',
+      'end time',
+      'time',
+      'block date',
+      'delivery time',
+      'order date',
     ],
     'miles': [
-      'miles', 'distance', 'trip distance', 'distance (miles)', 'delivery distance',
-      'mileage', 'total distance', 'distance mi',
+      'miles',
+      'distance',
+      'trip distance',
+      'distance (miles)',
+      'delivery distance',
+      'mileage',
+      'total distance',
+      'distance mi',
+      'estimated miles',
+      'route miles',
     ],
     'tips': [
-      'tips', 'tip', 'tip amount', 'earnings', 'driver earnings', 'total pay',
-      'total earnings', 'dasher pay', 'net pay', 'payout', 'fare', 'trip fare',
-      'amount', 'pay',
+      'tips',
+      'tip',
+      'tip amount',
+      'earnings',
+      'driver earnings',
+      'total pay',
+      'total earnings',
+      'dasher pay',
+      'net pay',
+      'payout',
+      'fare',
+      'trip fare',
+      'amount',
+      'pay',
+      'block pay',
+      'base pay',
+      'delivery pay',
     ],
     'notes': [
-      'notes', 'description', 'store name', 'restaurant', 'product type',
-      'service type', 'trip id', 'delivery', 'type',
+      'notes',
+      'description',
+      'store name',
+      'restaurant',
+      'product type',
+      'service type',
+      'trip id',
+      'delivery',
+      'type',
+      'merchant',
+      'station',
+      'block',
+      'warehouse',
+      'batch',
     ],
   };
 
   static const _platformHints = {
-    'uber': ['uber', 'trip request', 'trip fare', 'rider'],
+    'ubereats': ['uber eats', 'ubereats', 'eats', 'postmates'],
+    'uber': ['uber', 'trip request', 'trip fare', 'rider', 'uberx'],
     'doordash': ['doordash', 'dasher', 'delivery pay', 'store name'],
     'lyft': ['lyft', 'ride', 'passenger'],
     'instacart': ['instacart', 'batch', 'shop'],
+    'amazonflex': ['amazon flex', 'amazonflex', 'flex', 'dsp'],
+    'gopuff': ['gopuff', 'go puff'],
   };
 
   static CsvParseResult parseTripCsv(
@@ -192,14 +250,52 @@ class CsvImporter {
     }
 
     if (platform == 'uber') {
-      mapping['date'] ??= _findColumn(headers, ['trip request time', 'pickup time']);
-      mapping['miles'] ??= _findColumn(headers, ['trip distance', 'distance']);
-      mapping['tips'] ??= _findColumn(headers, ['driver earnings', 'earnings', 'trip fare']);
+      mapping['date'] ??=
+          _findColumn(headers, ['trip request time', 'pickup time']);
+      mapping['miles'] ??=
+          _findColumn(headers, ['trip distance', 'distance']);
+      mapping['tips'] ??=
+          _findColumn(headers, ['driver earnings', 'earnings', 'trip fare']);
+    }
+    if (platform == 'ubereats') {
+      mapping['date'] ??= _findColumn(
+        headers,
+        ['delivery time', 'delivery date', 'completed at', 'trip request time'],
+      );
+      mapping['miles'] ??=
+          _findColumn(headers, ['trip distance', 'delivery distance', 'distance']);
+      mapping['tips'] ??= _findColumn(
+        headers,
+        ['total pay', 'driver earnings', 'delivery pay', 'earnings', 'tips'],
+      );
+      mapping['notes'] ??=
+          _findColumn(headers, ['restaurant', 'store name', 'merchant']);
     }
     if (platform == 'doordash') {
-      mapping['date'] ??= _findColumn(headers, ['delivery date', 'completed at']);
-      mapping['tips'] ??= _findColumn(headers, ['total pay', 'dasher pay', 'earnings']);
-      mapping['notes'] ??= _findColumn(headers, ['store name', 'merchant']);
+      mapping['date'] ??=
+          _findColumn(headers, ['delivery date', 'completed at']);
+      mapping['tips'] ??=
+          _findColumn(headers, ['total pay', 'dasher pay', 'earnings']);
+      mapping['notes'] ??=
+          _findColumn(headers, ['store name', 'merchant']);
+    }
+    if (platform == 'amazonflex') {
+      mapping['date'] ??=
+          _findColumn(headers, ['block date', 'date', 'start time']);
+      mapping['miles'] ??=
+          _findColumn(headers, ['miles', 'estimated miles', 'distance']);
+      mapping['tips'] ??=
+          _findColumn(headers, ['block pay', 'pay', 'earnings', 'tips']);
+      mapping['notes'] ??=
+          _findColumn(headers, ['station', 'block', 'warehouse', 'notes']);
+    }
+    if (platform == 'gopuff') {
+      mapping['date'] ??=
+          _findColumn(headers, ['date', 'delivery date', 'shift date']);
+      mapping['miles'] ??=
+          _findColumn(headers, ['miles', 'distance']);
+      mapping['tips'] ??=
+          _findColumn(headers, ['pay', 'earnings', 'tips', 'total pay']);
     }
 
     return mapping;

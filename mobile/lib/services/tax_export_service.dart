@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../config/app_config.dart';
 import '../models/trip.dart';
 import 'irs_mileage_rate.dart';
 
@@ -78,7 +79,8 @@ class TaxExportService {
             'TrekTrack mileage package for tax year $year.\n'
             '• MileageLog — business miles only (personal trips excluded)\n'
             '• ScheduleC — standard mileage deduction summary for Schedule C\n'
-            'Generated $stamp. Confirm rates with your tax pro.',
+            'Generated $stamp.\n\n'
+            '${AppConfig.taxDisclaimer}',
       ),
     );
     return summary;
@@ -110,7 +112,9 @@ class TaxExportService {
           XFile(path, mimeType: 'text/csv', name: 'TrekTrack_Report_$safe.csv'),
         ],
         subject: 'TrekTrack report — $label',
-        text: 'Mileage report $startDate to $endDate from TrekTrack.',
+        text:
+            'Mileage report $startDate to $endDate from TrekTrack.\n\n'
+            '${AppConfig.taxDisclaimerShort}',
       ),
     );
   }
@@ -178,7 +182,7 @@ class TaxExportService {
     );
     buf.writeln(
       'Prepared By,TrekTrack,'
-      'For records / TurboTax upload. Verify with a tax professional.',
+      'Records aid only. Not tax advice. Verify rates and filings with a tax professional.',
     );
     return buf.toString();
   }
