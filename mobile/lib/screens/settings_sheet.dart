@@ -103,8 +103,10 @@ class _SettingsSheetBody extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Auto-updates each tax year from the IRS standard business rate. '
-                          'Reports use the rate for each trip’s year.',
+                          'Auto-updates from the IRS standard business rate '
+                          '(including mid-year changes). '
+                          'Reports use the rate in effect on each trip’s date. '
+                          '${IrsMileageRate.yearRatesLabel(IrsMileageRate.currentYear)}.',
                           style: TextStyle(fontSize: 12, color: p.textMuted, height: 1.35),
                         ),
                       ],
@@ -154,11 +156,25 @@ class _SettingsSheetBody extends StatelessWidget {
               contentPadding: EdgeInsets.zero,
               title: const Text('Lock screen controls'),
               subtitle: Text(
-                'Live banner with Start / Stop and mile updates on the lock screen and notification shade',
+                'While a trip is active: live miles + Stop on the lock screen and notification shade. Clears when the trip ends.',
                 style: TextStyle(fontSize: 12, color: p.textMuted),
               ),
               value: state.lockScreenControlsEnabled,
               onChanged: (v) => state.setLockScreenControlsEnabled(v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Auto-stop when parked'),
+              subtitle: Text(
+                state.autoStopEnabled
+                    ? 'Ends the trip after ~1–2.5 min parked (by battery mode). Auto-detect trips'
+                        '${state.autoDetectEnabled ? ' and manual trips while auto-detect is on' : ''}. '
+                        'Uses start time to avoid double-saves.'
+                    : 'Off — you must tap Stop to save every trip.',
+                style: TextStyle(fontSize: 12, color: p.textMuted),
+              ),
+              value: state.autoStopEnabled,
+              onChanged: (v) => state.setAutoStopEnabled(v),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -237,21 +253,24 @@ class _SettingsSheetBody extends StatelessWidget {
                   ? (v) => state.setChargingGate(v)
                   : null,
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Only when in a vehicle'),
-              subtitle: Text(
-                state.activityGateEnabled
-                    ? state.activityRecognition.statusLabel
-                    : 'Use phone motion sensors to sleep GPS until you\'re driving '
-                        '(or cycling). Works without car Bluetooth.',
-                style: TextStyle(fontSize: 12, color: p.textMuted),
+            // Android: vehicle motion gate removed (Play treats ACTIVITY_RECOGNITION
+            // as a Health Apps permission). Use car Bluetooth / charging / work hours.
+            if (!Platform.isAndroid)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Only when in a vehicle'),
+                subtitle: Text(
+                  state.activityGateEnabled
+                      ? state.activityRecognition.statusLabel
+                      : 'Use phone motion sensors to sleep GPS until you\'re driving '
+                          '(or cycling). Works without car Bluetooth.',
+                  style: TextStyle(fontSize: 12, color: p.textMuted),
+                ),
+                value: state.activityGateEnabled,
+                onChanged: state.autoDetectEnabled
+                    ? (v) => state.setActivityGate(v)
+                    : null,
               ),
-              value: state.activityGateEnabled,
-              onChanged: state.autoDetectEnabled
-                  ? (v) => state.setActivityGate(v)
-                  : null,
-            ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.schedule, color: p.textMuted, size: 22),

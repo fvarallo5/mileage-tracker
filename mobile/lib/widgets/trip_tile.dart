@@ -8,6 +8,7 @@ import 'source_badge.dart';
 
 final _currency = NumberFormat.currency(symbol: '\$');
 final _dateFmt = DateFormat.yMMMd();
+final _timeFmt = DateFormat.jm();
 
 class TripTile extends StatelessWidget {
   final Trip trip;
@@ -23,23 +24,35 @@ class TripTile extends StatelessWidget {
     this.onPurposeChanged,
   });
 
-  IconData _sourceIcon() => switch (trip.source) {
-        'uber' => Icons.local_taxi,
-        'ubereats' => Icons.fastfood,
-        'doordash' => Icons.delivery_dining,
-        'lyft' => Icons.directions_car,
-        'instacart' => Icons.shopping_bag,
-        'amazonflex' => Icons.local_shipping,
-        'gopuff' => Icons.nightlife,
-        'gps' => Icons.gps_fixed,
-        'autodetect' => Icons.radar_rounded,
-        _ => Icons.edit_road,
-      };
+  String _titleLine() {
+    final day = DateTime.tryParse(trip.date);
+    final dateLabel = day != null ? _dateFmt.format(day) : trip.date;
+    final time = _timeRangeLabel(trip);
+    if (time == null) return dateLabel;
+    return '$dateLabel · $time';
+  }
+
+  /// e.g. "2:14–2:41 PM" or "2:14 PM" when only one clock time is known.
+  static String? _timeRangeLabel(Trip trip) {
+    final start = trip.displayStart?.toLocal();
+    final end = trip.displayEnd?.toLocal();
+    if (start == null && end == null) return null;
+    if (start != null && end != null) {
+      final sameMeridiem = start.hour < 12 == end.hour < 12;
+      if (sameMeridiem) {
+        final startPart = DateFormat('h:mm').format(start);
+        final endPart = _timeFmt.format(end);
+        return '$startPart–$endPart';
+      }
+      return '${_timeFmt.format(start)} – ${_timeFmt.format(end)}';
+    }
+    final only = start ?? end!;
+    return _timeFmt.format(only);
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final parsedDate = DateTime.tryParse(trip.date);
     final iconColor = AppColors.sourceColor(trip.source);
     final personal = !trip.isBusiness;
 
@@ -72,7 +85,7 @@ class TripTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadii.md),
                     ),
                     child: Icon(
-                      _sourceIcon(),
+                      AppColors.sourceIcon(trip.source),
                       color: iconColor == AppColors.surface3 ? AppColors.accent : iconColor,
                       size: 22,
                     ),
@@ -87,7 +100,7 @@ class TripTile extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              parsedDate != null ? _dateFmt.format(parsedDate) : trip.date,
+                              _titleLine(),
                               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                     fontSize: 15,
                                     color: personal ? p.textMuted : p.text,

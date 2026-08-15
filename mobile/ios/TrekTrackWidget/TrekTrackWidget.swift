@@ -3,7 +3,7 @@
 // To enable on a device:
 // 1. Xcode → File → New → Target → Widget Extension → "TrekTrackWidget"
 // 2. Replace generated Swift with this file (or point the target at this folder)
-// 3. App Groups: enable group.com.mileagetracker.mileageTracker on Runner + widget
+// 3. App Groups: enable group.com.ultraforge.trektrack on Runner + widget
 // 4. Set deployment target ≥ iOS 16
 //
 // Flutter writes data via home_widget into the App Group UserDefaults.
@@ -11,7 +11,7 @@
 import SwiftUI
 import WidgetKit
 
-private let appGroupId = "group.com.mileagetracker.mileageTracker"
+private let appGroupId = "group.com.ultraforge.trektrack"
 
 struct TrekTrackEntry: TimelineEntry {
   let date: Date

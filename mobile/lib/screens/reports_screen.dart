@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../config/app_config.dart';
 import '../models/period_report.dart';
+import '../models/trip.dart';
 import '../providers/app_state.dart';
 import '../services/irs_mileage_rate.dart';
 import '../theme/app_theme.dart';
@@ -11,6 +12,8 @@ import '../widgets/report_stats_grid.dart';
 import '../widgets/section_header.dart';
 
 final _currency = NumberFormat.currency(symbol: '\$');
+final _timeFmt = DateFormat.jm();
+final _dayFmt = DateFormat.MMMd();
 
 class ReportsScreen extends StatelessWidget {
   const ReportsScreen({super.key});
@@ -154,8 +157,8 @@ class ReportsScreen extends StatelessWidget {
                       ReportStatsGrid(report: current),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
-                        'IRS rate: ${IrsMileageRate.centsLabel(current.mileageRate)} '
-                        '(per-trip rates applied for multi-year ranges)',
+                        'IRS rate shown: ${IrsMileageRate.centsLabel(current.mileageRate)} '
+                        '(deduction uses rate in effect on each trip date)',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               fontSize: 12,
                               color: p.textMuted,
@@ -176,6 +179,22 @@ class ReportsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
+                SectionHeader(
+                  title: 'Trips this period',
+                  subtitle: 'With start/end times when available',
+                ),
+                ..._periodTrips(state, current).map(
+                  (t) => _ReportTripRow(trip: t),
+                ),
+                if (_periodTrips(state, current).isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: Text(
+                      'No business trips in this period yet.',
+                      style: TextStyle(color: p.textMuted, fontSize: 13),
+                    ),
+                  ),
+                const SizedBox(height: AppSpacing.sm),
               ],
               const SectionHeader(title: 'History'),
               ...state.reportHistory.map(
@@ -199,6 +218,23 @@ class ReportsScreen extends StatelessWidget {
       'annual' => summary.annual,
       _ => summary.weekly,
     };
+  }
+
+  List<Trip> _periodTrips(AppState state, PeriodReport report) {
+    final list = state.trips
+        .where(
+          (t) =>
+              t.isBusiness &&
+              t.date.compareTo(report.startDate) >= 0 &&
+              t.date.compareTo(report.endDate) <= 0,
+        )
+        .toList()
+      ..sort((a, b) {
+        final aT = a.startedAtDate ?? a.createdAtDate ?? DateTime(1970);
+        final bT = b.startedAtDate ?? b.createdAtDate ?? DateTime(1970);
+        return bT.compareTo(aT);
+      });
+    return list.take(12).toList();
   }
 
   Future<void> _exportTax(BuildContext context, AppState state, int year) async {
@@ -225,6 +261,72 @@ class ReportsScreen extends StatelessWidget {
         SnackBar(content: Text('Export failed: $e')),
       );
     }
+  }
+}
+
+class _ReportTripRow extends StatelessWidget {
+  final Trip trip;
+
+  const _ReportTripRow({required this.trip});
+
+  String _timeLine() {
+    final start = trip.displayStart?.toLocal();
+    final end = trip.displayEnd?.toLocal();
+    final day = DateTime.tryParse(trip.date);
+    final dayLabel = day != null ? _dayFmt.format(day) : trip.date;
+    if (start != null && end != null) {
+      return '$dayLabel · ${_timeFmt.format(start)} – ${_timeFmt.format(end)}';
+    }
+    if (start != null) return '$dayLabel · ${_timeFmt.format(start)}';
+    return dayLabel;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(color: p.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _timeLine(),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: p.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  trip.notes.isEmpty ? trip.sourceLabel : trip.notes,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: p.textMuted),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${trip.miles.toStringAsFixed(1)} mi',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.accent,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

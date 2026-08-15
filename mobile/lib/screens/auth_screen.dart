@@ -6,6 +6,7 @@ import '../config/app_config.dart';
 import '../providers/auth_state.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_logo.dart';
 import '../utils/open_url.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -96,17 +97,7 @@ class _AuthScreenState extends State<AuthScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.accent, AppColors.accentDark],
-                      ),
-                      borderRadius: BorderRadius.circular(AppRadii.lg),
-                    ),
-                    child: const Icon(Icons.route, color: Colors.white, size: 28),
-                  ),
+                  const AppLogo.mark(size: 64),
                   const SizedBox(height: AppSpacing.lg),
                   Text(
                     AppConfig.appName,

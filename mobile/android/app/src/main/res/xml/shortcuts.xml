@@ -8,7 +8,7 @@
         android:shortcutLongLabel="@string/shortcut_start_trip_long">
         <intent
             android:action="com.mileagetracker.START_TRIP"
-            android:targetPackage="com.mileagetracker.mileage_tracker"
+            android:targetPackage="com.ultraforge.trektrack"
             android:targetClass="com.mileagetracker.mileage_tracker.MainActivity" />
     </shortcut>
     <shortcut
@@ -19,7 +19,7 @@
         android:shortcutLongLabel="@string/shortcut_stop_trip_long">
         <intent
             android:action="com.mileagetracker.STOP_TRIP"
-            android:targetPackage="com.mileagetracker.mileage_tracker"
+            android:targetPackage="com.ultraforge.trektrack"
             android:targetClass="com.mileagetracker.mileage_tracker.MainActivity" />
     </shortcut>
 </shortcuts>

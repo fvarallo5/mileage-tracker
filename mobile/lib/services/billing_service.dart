@@ -237,6 +237,8 @@ class BillingService {
   }
 
   void dispose() {
+    onChanged = null;
     _purchaseSub?.cancel();
+    _purchaseSub = null;
   }
 }

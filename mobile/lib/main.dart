@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
@@ -9,6 +11,7 @@ import 'providers/auth_state.dart';
 import 'screens/auth_screen.dart';
 import 'screens/legal_acceptance_screen.dart';
 import 'screens/reports_screen.dart';
+import 'screens/safety_driving_screen.dart';
 import 'screens/settings_sheet.dart';
 import 'screens/track_screen.dart';
 import 'screens/trips_screen.dart';
@@ -19,6 +22,7 @@ import 'services/theme_service.dart';
 import 'services/voice_command_service.dart';
 import 'theme/app_theme.dart';
 import 'utils/funnel_flow.dart';
+import 'widgets/app_logo.dart';
 import 'widgets/summary_strip.dart';
 
 Future<void> main() async {
@@ -77,6 +81,8 @@ class _AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<_AuthGate> {
   String? _reconciledUserId;
+  /// Driving-safety acknowledgment for this process (every cold start).
+  bool _safetyAcknowledged = false;
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +101,7 @@ class _AuthGateState extends State<_AuthGate> {
     }
     if (!auth.isSignedIn) {
       _reconciledUserId = null;
+      _safetyAcknowledged = false;
       return const AuthScreen();
     }
 
@@ -108,14 +115,23 @@ class _AuthGateState extends State<_AuthGate> {
       });
     }
 
-    if (!legal.loaded || legal.reconciling) {
+    // Avoid indefinite black/spinner after long dormancy if reconcile hangs.
+    if (!legal.loaded) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: const Center(child: CircularProgressIndicator()),
       );
     }
+    // reconciling runs in background — don't block the whole app on it.
     if (!legal.hasAcceptedCurrent) {
       return const LegalAcceptanceScreen();
+    }
+
+    // Cold start: require a brief safety acknowledgment before the home shell.
+    if (!_safetyAcknowledged) {
+      return SafetyDrivingScreen(
+        onContinue: () => setState(() => _safetyAcknowledged = true),
+      );
     }
 
     return ChangeNotifierProvider(
@@ -153,7 +169,7 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
   VoiceCommandService? _voiceCommands;
   AppState? _appState;
@@ -170,7 +186,27 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _setupVoiceCommands());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _appState?.removeListener(_onAppStateChanged);
+    _voiceCommands?.lastMessage.removeListener(_onVoiceMessage);
+    _appState?.lockScreen.lastMessage.removeListener(_onLockScreenMessage);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final app = _appState;
+      if (app != null) {
+        unawaited(app.onAppResumed());
+      }
+    }
   }
 
   Future<void> _setupVoiceCommands() async {
@@ -233,14 +269,6 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   @override
-  void dispose() {
-    _appState?.removeListener(_onAppStateChanged);
-    _voiceCommands?.lastMessage.removeListener(_onVoiceMessage);
-    _appState?.lockScreen.lastMessage.removeListener(_onLockScreenMessage);
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
@@ -262,17 +290,7 @@ class _HomeShellState extends State<HomeShell> {
                   ),
                   child: Row(
                     children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [AppColors.accent, AppColors.accentDark],
-                          ),
-                          borderRadius: BorderRadius.circular(AppRadii.md),
-                        ),
-                        child: const Icon(Icons.route, color: Colors.white, size: 22),
-                      ),
+                      const AppLogo.mark(size: 40),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Column(

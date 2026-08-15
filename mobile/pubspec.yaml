@@ -1,7 +1,7 @@
 name: mileage_tracker
 description: TrekTrack — audit-ready GPS mileage for gig workers and teams.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+9
 
 environment:
   sdk: ^3.12.1
@@ -19,7 +19,6 @@ dependencies:
   google_fonts: ^8.2.0
   package_info_plus: ^10.2.1
   url_launcher: ^6.3.1
-  flutter_app_intents: ^0.7.0
   permission_handler: ^12.0.3
   in_app_purchase: ^3.2.1
   supabase_flutter: ^2.9.1
@@ -46,14 +45,19 @@ flutter_launcher_icons:
   remove_alpha_ios: true
   image_path: assets/icon/app_icon.png
   adaptive_icon_background: "#0A0E14"
-  adaptive_icon_foreground: assets/icon/app_icon.png
+  adaptive_icon_foreground: assets/icon/app_icon_foreground.png
 
 flutter_native_splash:
   color: "#0A0E14"
-  image: assets/icon/app_icon.png
+  image: assets/icon/app_mark.png
   android_12:
     color: "#0A0E14"
-    image: assets/icon/app_icon.png
+    image: assets/icon/app_mark.png
+  color_dark: "#0A0E14"
+  image_dark: assets/icon/app_mark.png
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/app_icon.png
+    - assets/icon/app_mark.png

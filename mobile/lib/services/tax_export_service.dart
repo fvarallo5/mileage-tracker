@@ -122,7 +122,7 @@ class TaxExportService {
   static String _mileageLogCsv(List<Trip> trips, int year) {
     final buf = StringBuffer();
     buf.writeln(
-      'Date,Business Miles,Purpose,Source,Tips/Earnings (USD),'
+      'Date,Start Time,End Time,Business Miles,Purpose,Source,Tips/Earnings (USD),'
       'IRS Rate (\$/mi),Mileage Deduction (USD)',
     );
     for (final t in trips) {
@@ -131,6 +131,8 @@ class TaxExportService {
       buf.writeln(
         [
           t.date,
+          _fmtTime(t.startedAtDate ?? t.createdAtDate),
+          _fmtTime(t.endedAtDate),
           t.miles.toStringAsFixed(2),
           _csv(t.notes.isEmpty ? 'Business travel' : t.notes),
           t.sourceLabel,
@@ -141,16 +143,23 @@ class TaxExportService {
       );
     }
     if (trips.isEmpty) {
-      buf.writeln('$year-01-01,0.00,No trips logged,,,${IrsMileageRate.rateForYear(year).toStringAsFixed(3)},0.00');
+      buf.writeln(
+        '$year-01-01,,,0.00,No trips logged,,,${IrsMileageRate.rateForYear(year).toStringAsFixed(3)},0.00',
+      );
     }
     return buf.toString();
   }
 
+  static String _fmtTime(DateTime? dt) {
+    if (dt == null) return '';
+    return DateFormat('HH:mm:ss').format(dt.toLocal());
+  }
+
   static String _scheduleCCsv(List<Trip> trips, int year) {
-    final rate = IrsMileageRate.rateForYear(year);
+    final yearPeriods = IrsMileageRate.periodsForYear(year);
     final miles = trips.fold<double>(0, (s, t) => s + t.miles);
     final tips = trips.fold<double>(0, (s, t) => s + t.tips);
-    // Per-trip rates in case IRS mid-year changes are ever modeled.
+    // Per-trip rates (handles mid-year IRS revisions).
     final deduction = trips.fold<double>(
       0,
       (s, t) => s + t.miles * IrsMileageRate.rateForDateString(t.date),
@@ -167,13 +176,27 @@ class TaxExportService {
       'Business Miles,${miles.toStringAsFixed(2)},'
       'Enter on Schedule C vehicle / car and truck expenses (standard mileage)',
     );
-    buf.writeln(
-      'IRS Standard Mileage Rate (\$_per_mi),${rate.toStringAsFixed(3)},'
-      '${IrsMileageRate.centsLabel(rate)} IRS business rate for $year',
-    );
+    if (yearPeriods.length <= 1) {
+      final rate = IrsMileageRate.rateForYear(year);
+      buf.writeln(
+        'IRS Standard Mileage Rate (\$_per_mi),${rate.toStringAsFixed(3)},'
+        '${IrsMileageRate.centsLabel(rate)} IRS business rate for $year',
+      );
+    } else {
+      for (final p in yearPeriods) {
+        buf.writeln(
+          'IRS Rate ${p.start} to ${p.end} (\$_per_mi),${p.rate.toStringAsFixed(3)},'
+          '${IrsMileageRate.centsLabel(p.rate)} business rate for that window',
+        );
+      }
+      buf.writeln(
+        'IRS Rates Note,${IrsMileageRate.yearRatesLabel(year)},'
+        'Deduction uses per-trip date rate (mid-year change)',
+      );
+    }
     buf.writeln(
       'Standard Mileage Deduction (USD),${_currency.format(deduction)},'
-      'Business miles × IRS rate — Schedule C deduction amount',
+      'Business miles × IRS rate in effect on each trip date',
     );
     buf.writeln('Trip Count,${trips.length},Audit-ready trip log attached');
     buf.writeln(
@@ -208,12 +231,14 @@ class TaxExportService {
     buf.writeln('Tips/Earnings (USD),${_currency.format(tips)}');
     buf.writeln('Trips,${trips.length}');
     buf.writeln('');
-    buf.writeln('Date,Business Miles,Purpose,Source,Tips,Deduction');
+    buf.writeln('Date,Start Time,End Time,Business Miles,Purpose,Source,Tips,Deduction');
     for (final t in trips) {
       final rate = IrsMileageRate.rateForDateString(t.date);
       buf.writeln(
         [
           t.date,
+          _fmtTime(t.startedAtDate ?? t.createdAtDate),
+          _fmtTime(t.endedAtDate),
           t.miles.toStringAsFixed(2),
           _csv(t.notes.isEmpty ? 'Business travel' : t.notes),
           t.sourceLabel,

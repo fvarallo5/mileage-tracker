@@ -1,7 +1,6 @@
 import AppIntents
 import Flutter
 import UIKit
-import flutter_app_intents
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -17,6 +16,39 @@ import flutter_app_intents
     let messenger = engineBridge.applicationRegistrar.messenger()
     CarBluetoothHandler.register(messenger: messenger)
     ActivityRecognitionHandler.register(messenger: messenger)
+    TrekTrackVoiceBridge.register(messenger: messenger)
+  }
+}
+
+/// Bridges Siri / App Shortcuts to Flutter without third-party plugins.
+enum TrekTrackVoiceBridge {
+  private static var channel: FlutterMethodChannel?
+
+  static func register(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(
+      name: "com.mileagetracker/voice_commands",
+      binaryMessenger: messenger
+    )
+  }
+
+  static func invoke(_ method: String) async -> String {
+    await withCheckedContinuation { continuation in
+      DispatchQueue.main.async {
+        guard let channel else {
+          continuation.resume(returning: "TrekTrack is not ready yet. Open the app and try again.")
+          return
+        }
+        channel.invokeMethod(method, arguments: nil) { result in
+          if let value = result as? String {
+            continuation.resume(returning: value)
+          } else if let error = result as? FlutterError {
+            continuation.resume(returning: error.message ?? "Command failed")
+          } else {
+            continuation.resume(returning: "Done")
+          }
+        }
+      }
+    }
   }
 }
 
@@ -31,20 +63,9 @@ struct StartTripIntent: AppIntent {
   static var isDiscoverable = true
   static var openAppWhenRun = true
 
-  func perform() async throws -> some IntentResult & ReturnsValue<String> & OpensIntent {
-    let plugin = FlutterAppIntentsPlugin.shared
-    let result = await plugin.handleIntentInvocation(
-      identifier: "start_trip",
-      parameters: [:]
-    )
-
-    if let success = result["success"] as? Bool, success {
-      let value = result["value"] as? String ?? "Started GPS trip tracking"
-      return .result(value: value)
-    }
-
-    let errorMessage = result["error"] as? String ?? "Failed to start trip"
-    throw MileageAppIntentError.executionFailed(errorMessage)
+  func perform() async throws -> some IntentResult & ReturnsValue<String> {
+    let value = await TrekTrackVoiceBridge.invoke("start_trip")
+    return .result(value: value)
   }
 }
 
@@ -55,20 +76,9 @@ struct StopTripIntent: AppIntent {
   static var isDiscoverable = true
   static var openAppWhenRun = true
 
-  func perform() async throws -> some IntentResult & ReturnsValue<String> & OpensIntent {
-    let plugin = FlutterAppIntentsPlugin.shared
-    let result = await plugin.handleIntentInvocation(
-      identifier: "stop_trip",
-      parameters: [:]
-    )
-
-    if let success = result["success"] as? Bool, success {
-      let value = result["value"] as? String ?? "Trip saved"
-      return .result(value: value)
-    }
-
-    let errorMessage = result["error"] as? String ?? "Failed to stop trip"
-    throw MileageAppIntentError.executionFailed(errorMessage)
+  func perform() async throws -> some IntentResult & ReturnsValue<String> {
+    let value = await TrekTrackVoiceBridge.invoke("stop_trip")
+    return .result(value: value)
   }
 }
 

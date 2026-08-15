@@ -9,6 +9,8 @@ class Trip {
   final String source;
   final bool isBusiness;
   final String? createdAt;
+  final String? startedAt;
+  final String? endedAt;
   final double? startLat;
   final double? startLng;
   final double? endLat;
@@ -24,6 +26,8 @@ class Trip {
     this.source = 'manual',
     this.isBusiness = true,
     this.createdAt,
+    this.startedAt,
+    this.endedAt,
     this.startLat,
     this.startLng,
     this.endLat,
@@ -45,6 +49,20 @@ class Trip {
 
   String get purposeLabel => isBusiness ? 'Business' : 'Personal';
 
+  DateTime? get startedAtDate =>
+      startedAt != null ? DateTime.tryParse(startedAt!) : null;
+
+  DateTime? get endedAtDate =>
+      endedAt != null ? DateTime.tryParse(endedAt!) : null;
+
+  DateTime? get createdAtDate =>
+      createdAt != null ? DateTime.tryParse(createdAt!) : null;
+
+  /// Best clock time for list UI (drive start → end, else created).
+  DateTime? get displayStart => startedAtDate ?? createdAtDate;
+
+  DateTime? get displayEnd => endedAtDate;
+
   Trip copyWith({
     int? id,
     String? date,
@@ -54,6 +72,8 @@ class Trip {
     String? source,
     bool? isBusiness,
     String? createdAt,
+    String? startedAt,
+    String? endedAt,
     double? startLat,
     double? startLng,
     double? endLat,
@@ -69,6 +89,8 @@ class Trip {
       source: source ?? this.source,
       isBusiness: isBusiness ?? this.isBusiness,
       createdAt: createdAt ?? this.createdAt,
+      startedAt: startedAt ?? this.startedAt,
+      endedAt: endedAt ?? this.endedAt,
       startLat: startLat ?? this.startLat,
       startLng: startLng ?? this.startLng,
       endLat: endLat ?? this.endLat,
@@ -81,7 +103,11 @@ class Trip {
     final routeRaw = json['route'];
     List<GeoPoint> route = const [];
     if (routeRaw is List) {
-      route = routeRaw.map(GeoPoint.fromJson).toList();
+      try {
+        route = routeRaw.map(GeoPoint.fromJson).toList();
+      } catch (_) {
+        route = const [];
+      }
     }
 
     return Trip(
@@ -93,6 +119,8 @@ class Trip {
       source: json['source'] as String? ?? 'manual',
       isBusiness: json['is_business'] as bool? ?? true,
       createdAt: json['created_at'] as String?,
+      startedAt: json['started_at'] as String?,
+      endedAt: json['ended_at'] as String?,
       startLat: (json['start_lat'] as num?)?.toDouble(),
       startLng: (json['start_lng'] as num?)?.toDouble(),
       endLat: (json['end_lat'] as num?)?.toDouble(),
@@ -109,6 +137,8 @@ class Trip {
         'notes': notes,
         'source': source,
         'is_business': isBusiness,
+        if (startedAt != null) 'started_at': startedAt,
+        if (endedAt != null) 'ended_at': endedAt,
       };
 
   String get sourceLabel => switch (source) {

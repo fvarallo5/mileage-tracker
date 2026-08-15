@@ -45,19 +45,21 @@ class _AutoDetectCard extends StatelessWidget {
         (state.autoDetectMonitoring || state.trackingIsAuto || waitingOnGate);
     final phaseColor = waitingOnGate ? AppColors.amber : _phaseColor(state);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      padding: const EdgeInsets.all(AppSpacing.card),
-      decoration: BoxDecoration(
-        color: p.surface,
+    // Material so SwitchListTile ink/background paint correctly (not under DecoratedBox).
+    return Material(
+      color: p.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(
+        side: BorderSide(
           color: active ? phaseColor.withValues(alpha: 0.45) : p.border,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.card),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Row(
             children: [
               Icon(
@@ -265,7 +267,8 @@ class _AutoDetectCard extends StatelessWidget {
                 ),
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

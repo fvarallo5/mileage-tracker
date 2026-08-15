@@ -1,0 +1,2 @@
+// Keep SPM plugin package >= home_widget / file_picker minimums.
+IPHONEOS_DEPLOYMENT_TARGET=16.0

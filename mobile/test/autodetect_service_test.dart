@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:mileage_tracker/services/autodetect_service.dart';
+import 'package:mileage_tracker/services/battery_mode.dart';
 
 Position _pos({
   required double lat,
@@ -43,5 +44,15 @@ void main() {
 
   test('mpsToMph converts correctly', () {
     expect(AutoDetectService.mpsToMph(4.0), closeTo(8.95, 0.1));
+  });
+
+  test('balanced start speed is above walking pace', () {
+    // ~11 mph — walking is ~3 mph, jogging ~6–8.
+    expect(BatteryMode.balanced.startSpeedMps, greaterThan(4.5));
+    expect(BatteryMode.balanced.minStartDistanceMeters, greaterThanOrEqualTo(100));
+    expect(
+      BatteryMode.balanced.minSegmentSpeedMpsForAutoMiles,
+      greaterThan(3.0),
+    );
   });
 }

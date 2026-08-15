@@ -42,8 +42,15 @@ class GeoPoint {
 class TripTrackResult {
   final double miles;
   final List<GeoPoint> route;
+  final DateTime? startedAt;
+  final DateTime? endedAt;
 
-  const TripTrackResult({required this.miles, required this.route});
+  const TripTrackResult({
+    required this.miles,
+    required this.route,
+    this.startedAt,
+    this.endedAt,
+  });
 
   GeoPoint? get start => route.isEmpty ? null : route.first;
   GeoPoint? get end => route.isEmpty ? null : route.last;

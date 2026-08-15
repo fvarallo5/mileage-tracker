@@ -48,6 +48,19 @@ class AppColors {
         'autodetect' => amber,
         _ => surface3,
       };
+
+  static IconData sourceIcon(String source) => switch (source) {
+        'uber' => Icons.local_taxi,
+        'ubereats' => Icons.fastfood,
+        'doordash' => Icons.delivery_dining,
+        'lyft' => Icons.directions_car,
+        'instacart' => Icons.shopping_bag,
+        'amazonflex' => Icons.local_shipping,
+        'gopuff' => Icons.nightlife,
+        'gps' => Icons.gps_fixed,
+        'autodetect' => Icons.radar_rounded,
+        _ => Icons.edit_road,
+      };
 }
 
 class AppSpacing {
@@ -343,13 +356,25 @@ ThemeData _buildTheme({
       textColor: text,
     ),
     chipTheme: ChipThemeData(
-      backgroundColor: surface2,
-      selectedColor: AppColors.accent.withValues(alpha: 0.2),
-      labelStyle: const TextStyle(fontSize: 13),
+      // Light mode needs explicit ink colors — default M3 greys wash out on white.
+      backgroundColor: isDark ? surface2 : surface3,
+      selectedColor: AppColors.accent.withValues(alpha: isDark ? 0.22 : 0.14),
+      disabledColor: surface3,
+      labelStyle: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: text,
+      ),
+      secondaryLabelStyle: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: isDark ? AppColors.accent : AppColors.accentDark,
+      ),
       side: BorderSide(color: border),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.md),
       ),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: ButtonStyle(

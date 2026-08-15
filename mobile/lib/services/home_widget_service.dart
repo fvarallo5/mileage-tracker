@@ -19,7 +19,7 @@ class HomeWidgetService {
   static const iOSWidgetName = 'TrekTrackWidget';
 
   /// iOS App Group — must match Runner + Widget Extension entitlements.
-  static const appGroupId = 'group.com.mileagetracker.mileageTracker';
+  static const appGroupId = 'group.com.ultraforge.trektrack';
 
   static bool _configured = false;
   static DateTime? _lastUpdate;

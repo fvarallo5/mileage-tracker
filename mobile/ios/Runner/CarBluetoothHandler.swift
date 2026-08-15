@@ -50,7 +50,11 @@ final class CarBluetoothHandler: NSObject, FlutterStreamHandler {
       object: nil
     )
     let session = AVAudioSession.sharedInstance()
-    try? session.setCategory(.playAndRecord, options: [.allowBluetooth, .allowBluetoothA2DP, .mixWithOthers])
+    // allowBluetoothHFP replaces deprecated .allowBluetooth (iOS 8+)
+    try? session.setCategory(
+      .playAndRecord,
+      options: [.allowBluetoothHFP, .allowBluetoothA2DP, .mixWithOthers]
+    )
     try? session.setActive(true, options: .notifyOthersOnDeactivation)
   }
 

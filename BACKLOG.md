@@ -4,9 +4,11 @@ Living list of product work. Order is guidance, not a hard commitment.
 
 ## Now / near-term (launch path)
 
-- [ ] DUNS approved → Apple / Google **organization** accounts
+- [x] DUNS approved → Apple / Google **organization** accounts
 - [ ] **Live IAP** — monthly + yearly + 7-day trial (store products match `billing_config.dart`)
 - [ ] Store listings — screenshots, subtitle, privacy/terms URLs, support `info@trektrack.pro`
+- [ ] TestFlight (Apple) + Play internal testing (Google)
+- [ ] App Review / Play review prep (privacy questionnaires, location purpose strings)
 - [ ] Android **home widget** smoke test / polish on device
 - [x] Tax disclaimer on export + Pro paywall + PrivacyInfo / Android FGS compliance pass
 

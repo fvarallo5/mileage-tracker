@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../config/app_config.dart';
 import '../services/legal_acceptance_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_logo.dart';
 import '../utils/open_url.dart';
 
 /// Full-screen gate: must accept Terms + Privacy before using the app.
@@ -48,17 +49,7 @@ class _LegalAcceptanceScreenState extends State<LegalAcceptanceScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(flex: 1),
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.accent, AppColors.accentDark],
-                  ),
-                  borderRadius: BorderRadius.circular(AppRadii.md),
-                ),
-                child: const Icon(Icons.route, color: Colors.white, size: 28),
-              ),
+              const AppLogo.mark(size: 64),
               const SizedBox(height: AppSpacing.lg),
               Text(
                 'Before you continue',

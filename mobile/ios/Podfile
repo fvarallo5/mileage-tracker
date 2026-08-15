@@ -44,6 +44,10 @@ post_install do |installer|
         '$(inherited)',
         'PERMISSION_LOCATION=1',
       ]
+      # Keep above home_widget's min (14) and match Runner / App Intents (16).
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
     end
   end
 end
+
+

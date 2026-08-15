@@ -63,6 +63,8 @@ class SupabaseService {
     double? endLat,
     double? endLng,
     List<List<double>> route = const [],
+    DateTime? startedAt,
+    DateTime? endedAt,
   }) async {
     final userId = _userId;
     if (userId == null) throw ApiException('Not signed in');
@@ -81,22 +83,59 @@ class SupabaseService {
     if (endLat != null) payload['end_lat'] = endLat;
     if (endLng != null) payload['end_lng'] = endLng;
     if (route.isNotEmpty) payload['route'] = route;
+    if (startedAt != null) {
+      payload['started_at'] = startedAt.toUtc().toIso8601String();
+    }
+    if (endedAt != null) {
+      payload['ended_at'] = endedAt.toUtc().toIso8601String();
+    }
 
     try {
       final row = await _client.from('trips').insert(payload).select().single();
       return _tripFromRow(row);
-    } catch (_) {
-      // Newer columns may not be migrated yet — fall back to core fields.
-      final row = await _client.from('trips').insert({
+    } catch (e) {
+      // Missing columns (migrations 002/003/007) — retry without optional fields.
+      if (!_looksLikeMissingColumn(e)) rethrow;
+
+      final core = <String, dynamic>{
         'user_id': userId,
         'date': date,
         'miles': miles,
         'tips': tips,
         'notes': notes,
         'source': source,
-      }).select().single();
-      return _tripFromRow(row).copyWith(isBusiness: isBusiness);
+      };
+      // Try with geometry + purpose but no timestamps.
+      try {
+        final mid = {
+          ...core,
+          'is_business': isBusiness,
+          if (startLat != null) 'start_lat': startLat,
+          if (startLng != null) 'start_lng': startLng,
+          if (endLat != null) 'end_lat': endLat,
+          if (endLng != null) 'end_lng': endLng,
+          if (route.isNotEmpty) 'route': route,
+        };
+        final row = await _client.from('trips').insert(mid).select().single();
+        return _tripFromRow(row);
+      } catch (e2) {
+        if (!_looksLikeMissingColumn(e2)) rethrow;
+        final row =
+            await _client.from('trips').insert(core).select().single();
+        return _tripFromRow(row).copyWith(isBusiness: isBusiness);
+      }
     }
+  }
+
+  bool _looksLikeMissingColumn(Object e) {
+    final m = e.toString().toLowerCase();
+    return m.contains('column') ||
+        m.contains('start_lat') ||
+        m.contains('started_at') ||
+        m.contains('ended_at') ||
+        m.contains('is_business') ||
+        m.contains('schema cache') ||
+        m.contains('could not find');
   }
 
   Future<Trip> updateTrip(
@@ -428,6 +467,8 @@ class SupabaseService {
       'source': row['source'],
       'is_business': row['is_business'] ?? true,
       'created_at': row['created_at'],
+      'started_at': row['started_at'],
+      'ended_at': row['ended_at'],
       'start_lat': row['start_lat'],
       'start_lng': row['start_lng'],
       'end_lat': row['end_lat'],

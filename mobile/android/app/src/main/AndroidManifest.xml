@@ -11,7 +11,14 @@
     <!-- Car Bluetooth gate for auto-detect (Android 12+ needs CONNECT). -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!--
+      ACTIVITY_RECOGNITION is treated as a Health Apps policy permission on Play.
+      TrekTrack is not a health app — vehicle auto-detect uses GPS/speed instead.
+      Explicit remove so no dependency can re-merge it.
+    -->
+    <uses-permission
+        android:name="android.permission.ACTIVITY_RECOGNITION"
+        tools:node="remove" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <application
         android:label="TrekTrack"

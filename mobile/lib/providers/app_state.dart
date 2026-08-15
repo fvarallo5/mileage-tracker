@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 import '../config/supabase_config.dart';
+import '../data/sample_map_trips.dart';
 import '../models/entitlement.dart';
 import '../models/geo_point.dart';
 import '../models/period_report.dart';
@@ -31,26 +32,17 @@ import '../services/trip_tracker.dart';
 import '../services/usage_service.dart';
 import '../services/work_hours_service.dart';
 
-class AppState extends ChangeNotifier {
-  AppState(this._supabase) {
-    _tracker = TripTracker();
-    _premium = PremiumService();
-    _entitlements = EntitlementService(_premium, _supabase);
-    _billing = BillingService(_entitlements)..onChanged = notifyListeners;
-    _battery = BatteryService()..addListener(notifyListeners);
-    _usage = UsageService();
-    _workHours = WorkHoursService()..addListener(_onPowerGateChanged);
-    _carBluetooth = CarBluetoothService()..addListener(_onPowerGateChanged);
-    _chargingGate = ChargingGateService()..addListener(_onPowerGateChanged);
-    _activity = ActivityRecognitionService()..addListener(_onPowerGateChanged);
-    _mapMatch = MapMatchService()..addListener(notifyListeners);
-    _lockScreen = LockScreenTripService();
-    _autoDetect = AutoDetectService(
-      onTripStarted: _handleAutoTripStarted,
-      onTripEnded: _handleAutoTripEnded,
-    )..addListener(notifyListeners);
-    _tracker.onPosition = _onTrackerPosition;
-  }
+part 'app_state_data.dart';
+part 'app_state_tracking.dart';
+part 'app_state_premium.dart';
+
+/// Shared fields + service wiring. Domain methods live in mixins.
+///
+/// - [AppStateData] — trips, reports, exports
+/// - [AppStateTracking] — GPS sessions, lock screen, map match
+/// - [AppStatePremium] — billing, gates, auto-detect
+abstract class AppStateBase extends ChangeNotifier {
+  AppStateBase(this._supabase);
 
   final SupabaseService _supabase;
   late final TripTracker _tracker;
@@ -67,6 +59,15 @@ class AppState extends ChangeNotifier {
   late final LockScreenTripService _lockScreen;
   late final AutoDetectService _autoDetect;
   Timer? _workHoursTimer;
+  Timer? _liveMilesTimer;
+  bool _alive = true;
+  /// Guards concurrent stopTracking (auto-end + UI/notification).
+  bool _stopInFlight = false;
+  /// When true, parked detection can end trips automatically.
+  bool autoStopEnabled = true;
+  /// Fingerprint of last closed GPS session (blocks double-save of same drive).
+  String? _lastClosedSessionKey;
+  DateTime? _lastClosedSessionAt;
 
   SupabaseService get supabase => _supabase;
   PremiumService get premium => _premium;
@@ -136,7 +137,6 @@ class AppState extends ChangeNotifier {
   bool tracking = false;
   double liveMiles = 0;
   String? lastAutoDetectMessage;
-  Timer? _liveMilesTimer;
 
   /// Free→Pro funnel sheet waiting to be shown by [HomeShell].
   FunnelPrompt? pendingFunnelPrompt;
@@ -145,11 +145,104 @@ class AppState extends ChangeNotifier {
   bool get trackingInBackground => tracking && _tracker.isBackground;
   bool get trackingIsAuto => tracking && _tracker.isAutoStarted;
 
+  Future<void> _publishHomeWidget() {
+    return HomeWidgetService.publish(
+      tracking: tracking,
+      tripMiles: liveMiles,
+      trips: trips,
+    );
+  }
+
+  /// Avoid notify after [dispose] (async billing / GPS can finish late).
+  void _safeNotify() {
+    if (!_alive) return;
+    notifyListeners();
+  }
+
+  // —— Cross-mixin contracts (implemented by domain mixins) ——
+  // ignore: unused_element — referenced via subclass / other mixins
+  Future<void> refresh();
+  // ignore: unused_element
+  Future<Trip> saveTrip({
+    int? id,
+    required String date,
+    required double miles,
+    double tips = 0,
+    String notes = '',
+    String source = 'manual',
+    bool isBusiness = true,
+    double? startLat,
+    double? startLng,
+    double? endLat,
+    double? endLng,
+    List<GeoPoint> route = const [],
+    DateTime? startedAt,
+    DateTime? endedAt,
+  });
+  // ignore: unused_element
+  Future<void> startTracking({
+    bool background = false,
+    bool autoStarted = false,
+  });
+  // ignore: unused_element
+  Future<Trip?> stopTracking({
+    double tips = 0,
+    String notes = '',
+    String source = 'gps',
+  });
+  // ignore: unused_element
+  Future<String> startTrackingFromVoice();
+  // ignore: unused_element
+  Future<String> stopTrackingFromVoice();
+  // ignore: unused_element
+  void _pollLiveMiles();
+  // ignore: unused_element
+  void _stopLiveMilesPoll();
+  // ignore: unused_element
+  void _onTrackerPosition(Position position);
+  // ignore: unused_element
+  void _ensureWorkHoursTimer();
+  // ignore: unused_element
+  void _onPowerGateChanged();
+  // ignore: unused_element
+  Future<void> _syncAutoDetectMonitoring();
+  // ignore: unused_element
+  Future<void> _handleAutoTripStarted();
+  // ignore: unused_element
+  Future<void> _handleAutoTripEnded();
+  // ignore: unused_element
+  Future<void> _loadAutoStopPref();
+}
+
+/// App-wide state facade used by the UI ([Provider]).
+class AppState extends AppStateBase
+    with AppStateData, AppStateTracking, AppStatePremium {
+  AppState(super.supabase) {
+    _tracker = TripTracker();
+    _premium = PremiumService();
+    _entitlements = EntitlementService(_premium, _supabase);
+    _billing = BillingService(_entitlements)..onChanged = _safeNotify;
+    _battery = BatteryService()..addListener(_safeNotify);
+    _usage = UsageService();
+    _workHours = WorkHoursService()..addListener(_onPowerGateChanged);
+    _carBluetooth = CarBluetoothService()..addListener(_onPowerGateChanged);
+    _chargingGate = ChargingGateService()..addListener(_onPowerGateChanged);
+    _activity = ActivityRecognitionService()..addListener(_onPowerGateChanged);
+    _mapMatch = MapMatchService()..addListener(_safeNotify);
+    _lockScreen = LockScreenTripService();
+    _autoDetect = AutoDetectService(
+      onTripStarted: _handleAutoTripStarted,
+      onTripEnded: _handleAutoTripEnded,
+    )..addListener(_safeNotify);
+    _tracker.onPosition = _onTrackerPosition;
+  }
+
   Future<void> initialize() async {
     if (!SupabaseConfig.isConfigured) {
       loading = false;
       connected = false;
-      error = 'Supabase not configured. Rebuild with SUPABASE_URL and SUPABASE_ANON_KEY.';
+      error =
+          'Supabase not configured. Rebuild with SUPABASE_URL and SUPABASE_ANON_KEY.';
       notifyListeners();
       return;
     }
@@ -163,6 +256,7 @@ class AppState extends ChangeNotifier {
     await _chargingGate.load();
     await _activity.load();
     await _mapMatch.load();
+    await _loadAutoStopPref();
     await _entitlements.reconcile();
     await _billing.initialize();
     await _tracker.restoreSession(batteryMode: _battery.mode);
@@ -171,7 +265,9 @@ class AppState extends ChangeNotifier {
     if (tracking) {
       liveMiles = _tracker.currentMiles;
       _pollLiveMiles();
-      if (_premium.autoDetectEnabled && _tracker.isAutoStarted) {
+      // Re-arm parked auto-stop after process death if applicable.
+      final auto = _tracker.isAutoStarted;
+      if (autoStopEnabled && (auto || _premium.autoDetectEnabled)) {
         _autoDetect.pauseForActiveTrip();
       }
     }
@@ -191,609 +287,14 @@ class AppState extends ChangeNotifier {
     unawaited(_publishHomeWidget());
   }
 
-  Future<void> _publishHomeWidget() {
-    return HomeWidgetService.publish(
-      tracking: tracking,
-      tripMiles: liveMiles,
-      trips: trips,
-    );
-  }
-
-  Future<void> setLockScreenControlsEnabled(bool enabled) async {
-    await _lockScreen.setEnabled(enabled);
-    if (enabled && tracking) {
-      await _lockScreen.publishImmediate(
-        tracking: true,
-        miles: liveMiles,
-        isAuto: _tracker.isAutoStarted,
-      );
-    }
-    notifyListeners();
-  }
-
-  Future<void> refresh() async {
-    loading = true;
-    error = null;
-    notifyListeners();
-
-    connected = await _supabase.healthCheck();
-    if (!connected) {
-      loading = false;
-      error = 'Cannot reach Supabase. Check your connection and project settings.';
-      notifyListeners();
-      return;
-    }
-
-    try {
-      final results = await Future.wait([
-        _supabase.getTrips(limit: 100),
-        _supabase.getReportSummary(),
-        _entitlements.reconcile(),
-      ]);
-      trips = results[0] as List<Trip>;
-      summary = results[1] as ReportSummary;
-      await _syncIrsMileageRate();
-      await loadReportHistory();
-      error = null;
-      unawaited(_publishHomeWidget());
-    } on ApiException catch (e) {
-      error = e.message;
-    } catch (e) {
-      error = 'Failed to load data: $e';
-    } finally {
-      loading = false;
-      notifyListeners();
-    }
-  }
-
-  /// Keeps cloud settings in sync with the published IRS rate for this year.
-  Future<void> _syncIrsMileageRate() async {
-    final irs = IrsMileageRate.current;
-    mileageRate = irs;
-    try {
-      final stored = await _supabase.getMileageRate();
-      if ((stored - irs).abs() > 0.0005) {
-        mileageRate = await _supabase.setMileageRate(irs);
-      }
-    } catch (_) {
-      // Offline or RLS — still use IRS locally for reports.
-      mileageRate = irs;
-    }
-  }
-
-  Future<void> loadReportHistory() async {
-    reportHistory = await _supabase.getReports(reportPeriod, count: 8);
-    notifyListeners();
-  }
-
-  Future<void> setReportPeriod(String period) async {
-    reportPeriod = period;
-    await loadReportHistory();
-  }
-
-  Future<TaxYearSummary> exportTaxPackage({int? year}) async {
-    return TaxExportService.shareTaxPackage(
-      trips: trips,
-      year: year ?? IrsMileageRate.currentYear,
-    );
-  }
-
-  Future<void> exportPeriodReport(PeriodReport report) async {
-    await TaxExportService.sharePeriodExport(
-      trips: trips,
-      startDate: report.startDate,
-      endDate: report.endDate,
-      label: report.label,
-    );
-  }
-
-  Future<void> setBatteryMode(BatteryMode mode) async {
-    await _battery.setMode(mode);
-    await _autoDetect.applyMode(mode);
-    // Hot-swap GPS sampling if a trip is already running.
-    if (tracking) {
-      await _tracker.applyBatteryMode(mode);
-    }
-    notifyListeners();
-  }
-
-  Future<void> setWorkHoursEnabled(bool enabled) async {
-    await _workHours.setEnabled(enabled);
-    _ensureWorkHoursTimer();
-    await _syncAutoDetectMonitoring();
-    notifyListeners();
-  }
-
-  Future<void> setWorkHoursStart(int minutes) async {
-    await _workHours.setStartMinutes(minutes);
-    await _syncAutoDetectMonitoring();
-    notifyListeners();
-  }
-
-  Future<void> setWorkHoursEnd(int minutes) async {
-    await _workHours.setEndMinutes(minutes);
-    await _syncAutoDetectMonitoring();
-    notifyListeners();
-  }
-
-  Future<void> setWorkHoursDay(int dayIndex, bool active) async {
-    await _workHours.setDayActive(dayIndex, active);
-    await _syncAutoDetectMonitoring();
-    notifyListeners();
-  }
-
-  void _ensureWorkHoursTimer() {
-    _workHoursTimer?.cancel();
-    if (!_workHours.enabled || !_premium.autoDetectEnabled) {
-      _workHoursTimer = null;
-      return;
-    }
-    // Re-evaluate at the top of each minute so shift start/end apply promptly.
-    _workHoursTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      unawaited(_syncAutoDetectMonitoring());
-    });
-  }
-
-  Future<void> setCarBluetoothGate(bool enabled) async {
-    await _carBluetooth.setGateEnabled(enabled);
-    if (enabled && !_carBluetooth.hasPermission) {
-      lastAutoDetectMessage =
-          'Bluetooth permission is required for the car Bluetooth gate.';
-    } else if (enabled && _carBluetooth.connected) {
-      lastAutoDetectMessage = 'Car Bluetooth connected — auto-detect can watch.';
-    } else if (enabled) {
-      lastAutoDetectMessage =
-          'Car Bluetooth gate on — GPS watching sleeps until the car connects.';
-    }
-    await _syncAutoDetectMonitoring();
-    notifyListeners();
-  }
-
-  Future<void> setChargingGate(bool enabled) async {
-    await _chargingGate.setGateEnabled(enabled);
-    if (enabled && _chargingGate.isPluggedIn) {
-      lastAutoDetectMessage =
-          'Charger connected — auto-detect can watch.';
-    } else if (enabled) {
-      lastAutoDetectMessage =
-          'Charger gate on — GPS watching sleeps until you plug in.';
-    }
-    await _syncAutoDetectMonitoring();
-    notifyListeners();
-  }
-
-  Future<void> setActivityGate(bool enabled) async {
-    await _activity.setGateEnabled(enabled);
-    if (enabled && !_activity.hasPermission) {
-      lastAutoDetectMessage =
-          'Motion / activity permission is required for the vehicle gate.';
-    } else if (enabled && _activity.inVehicle) {
-      lastAutoDetectMessage = 'In vehicle — auto-detect can watch.';
-    } else if (enabled) {
-      lastAutoDetectMessage =
-          'Vehicle motion gate on — GPS watching sleeps until you drive.';
-    }
-    await _syncAutoDetectMonitoring();
-    notifyListeners();
-  }
-
-  void _onPowerGateChanged() {
-    // Car BT or activity flipped — start or stop idle GPS watch.
-    unawaited(_syncAutoDetectMonitoring());
-  }
-
-  Future<String> purchasePremium({bool? annual}) async {
-    final message = await _billing.purchasePremium(annual: annual);
-    notifyListeners();
-    return message;
-  }
-
-  Future<String> restorePurchases() async {
-    final message = await _billing.restorePurchases();
-    notifyListeners();
-    return message;
-  }
-
-  void consumeFunnelPrompt() {
-    pendingFunnelPrompt = null;
-  }
-
-  Future<String> unlockPremiumForDevelopment() async {
-    await _billing.unlockForDevelopment();
-    notifyListeners();
-    if (_entitlements.lastSyncError != null) {
-      return 'Pro unlocked locally. Cloud sync: ${_entitlements.lastSyncError}';
-    }
-    return 'Pro unlocked for development testing (synced to account).';
-  }
-
-  Future<void> disableAutoDetect() async {
-    await _premium.setAutoDetect(false);
-    _ensureWorkHoursTimer();
-    await _syncAutoDetectMonitoring();
-    notifyListeners();
-  }
-
-  Future<String?> enableAutoDetect() async {
-    if (!canUseAutoDetect) {
-      return 'Free auto-detect limit reached (${AppConfig.freeAutoTripsPerMonth}/month). Upgrade to Pro for unlimited.';
-    }
-
-    final permError = await _tracker.requestBackgroundPermission();
-    if (permError != null) return permError;
-
-    await _premium.setAutoDetect(true);
-    _ensureWorkHoursTimer();
-    await _syncAutoDetectMonitoring();
-    notifyListeners();
-    return null;
-  }
-
-  Future<void> _syncAutoDetectMonitoring() async {
-    final gateOk = powerGatesAllowWatch;
-    final shouldWatch = _premium.autoDetectEnabled &&
-        canUseAutoDetect &&
-        !tracking &&
-        gateOk;
-
-    if (shouldWatch) {
-      final permError = await _tracker.requestBackgroundPermission();
-      if (permError != null) {
-        error = permError;
-        await _premium.setAutoDetect(false);
-        notifyListeners();
-        return;
-      }
-      await _autoDetect.startMonitoring(mode: _battery.mode);
-    } else {
-      // Don't kill an in-progress auto trip if a gate drops mid-drive.
-      if (!tracking) {
-        await _autoDetect.stopMonitoring();
-      }
-      if (_premium.autoDetectEnabled && !canUseAutoDetect && !isPremium) {
-        lastAutoDetectMessage =
-            'Free auto trips used up this month (${_usage.autoTripsThisMonth}/${_usage.freeLimit}). Upgrade for unlimited.';
-      }
-    }
-    notifyListeners();
-  }
-
-  Future<void> _handleAutoTripStarted() async {
-    if (tracking) return;
-
-    if (!canUseAutoDetect) {
-      lastAutoDetectMessage = 'Auto-detect paused — free monthly limit reached.';
-      _autoDetect.cancelPendingStart(detail: 'Free limit reached');
-      await _premium.setAutoDetect(false);
-      await _syncAutoDetectMonitoring();
-      notifyListeners();
-      return;
-    }
-
-    if (!_workHours.allowsAutoDetectWatch) {
-      lastAutoDetectMessage = 'Outside work hours — auto-start skipped';
-      _autoDetect.cancelPendingStart(detail: 'Outside work hours');
-      notifyListeners();
-      return;
-    }
-
-    if (!connected) {
-      lastAutoDetectMessage =
-          'Drive detected, but you\'re offline. Connect to save auto trips.';
-      // Stay ready to try again after cooldown.
-      _autoDetect.cancelPendingStart(detail: 'Offline — try again soon');
-      notifyListeners();
-      return;
-    }
-
-    lastAutoDetectMessage = 'Drive confirmed — starting trip';
-    notifyListeners();
-
-    // Stop idle watch; active trip GPS is owned by TripTracker.
-    await _autoDetect.stopMonitoring();
-    _autoDetect.pauseForActiveTrip();
-    await startTracking(background: true, autoStarted: true);
-
-    if (tracking) {
-      lastAutoDetectMessage = 'Auto trip in progress';
-    } else {
-      // Start failed — don't leave auto-detect stuck in "trip active".
-      lastAutoDetectMessage = error ?? 'Could not start auto trip GPS';
-      _autoDetect.resumeAfterTrip();
-      await _syncAutoDetectMonitoring();
-    }
-    notifyListeners();
-  }
-
-  Future<void> _handleAutoTripEnded() async {
-    if (!tracking || !_tracker.isAutoStarted) return;
-    _autoDetect.resumeAfterTrip();
-    final milesSnapshot = liveMiles;
-    final trip = await stopTracking(
-      tips: 0,
-      notes: 'Auto-detected trip',
-      source: 'autodetect',
-    );
-    if (trip != null) {
-      final prompt = await _usage.recordAutoTrip(isPremium: isPremium);
-      final left = _usage.remainingFreeAutoTrips;
-      lastAutoDetectMessage = isPremium
-          ? 'Auto-saved ${trip.miles.toStringAsFixed(1)} mi'
-          : 'Auto-saved ${trip.miles.toStringAsFixed(1)} mi · $left free left this month';
-      if (prompt != null) {
-        pendingFunnelPrompt = prompt;
-      }
-      if (!isPremium && !_usage.hasFreeAutoTripsRemaining) {
-        lastAutoDetectMessage =
-            'Auto-saved ${trip.miles.toStringAsFixed(1)} mi · free limit reached';
-        await _premium.setAutoDetect(false);
-      }
-    } else {
-      lastAutoDetectMessage = milesSnapshot < 0.25
-          ? 'Skipped short hop (${milesSnapshot.toStringAsFixed(2)} mi) — not saved'
-          : 'Trip too short to save (${milesSnapshot.toStringAsFixed(2)} mi)';
-    }
-    notifyListeners();
-    await _syncAutoDetectMonitoring();
-  }
-
-  void _onTrackerPosition(Position position) {
-    if (_premium.autoDetectEnabled && tracking && _tracker.isAutoStarted) {
-      _autoDetect.evaluateActiveTrip(position);
-    }
-  }
-
-  Future<String> startTrackingFromVoice() async {
-    if (tracking) return 'Already tracking a trip.';
-    if (!connected) {
-      return 'Cannot reach Supabase. Open ${AppConfig.appName} and check your connection.';
-    }
-
-    await startTracking();
-    if (error != null) return error!;
-    return 'Started GPS trip tracking.';
-  }
-
-  Future<String> stopTrackingFromVoice() async {
-    if (!tracking) return 'No active trip to stop.';
-
-    final milesSnapshot = liveMiles;
-    final trip = await stopTracking(tips: 0, notes: 'Stopped via voice');
-    if (trip == null) {
-      return 'Trip too short to save (${milesSnapshot.toStringAsFixed(2)} mi).';
-    }
-    return 'Saved ${trip.miles.toStringAsFixed(1)} mile trip.';
-  }
-
-  Future<void> startTracking({bool background = false, bool autoStarted = false}) async {
-    final useBackground = background || autoStarted || _premium.isPremium;
-    final permError = useBackground
-        ? await _tracker.requestBackgroundPermission()
-        : await _tracker.requestForegroundPermission();
-    if (permError != null) {
-      error = permError;
-      notifyListeners();
-      return;
-    }
-
-    await _tracker.start(
-      background: useBackground,
-      autoStarted: autoStarted,
-      batteryMode: _battery.mode,
-    );
-    tracking = true;
-    liveMiles = 0;
-    error = null;
-    notifyListeners();
-
-    await _lockScreen.publishImmediate(
-      tracking: true,
-      miles: 0,
-      isAuto: autoStarted,
-    );
-    unawaited(_publishHomeWidget());
-    _pollLiveMiles();
-  }
-
-  void _pollLiveMiles() {
-    _liveMilesTimer?.cancel();
-    if (!tracking) return;
-    liveMiles = _tracker.currentMiles;
-    notifyListeners();
-    unawaited(
-      _lockScreen.publish(
-        tracking: true,
-        miles: liveMiles,
-        isAuto: _tracker.isAutoStarted,
-      ),
-    );
-    unawaited(_publishHomeWidget());
-    _liveMilesTimer = Timer(const Duration(milliseconds: 500), _pollLiveMiles);
-  }
-
-  void _stopLiveMilesPoll() {
-    _liveMilesTimer?.cancel();
-    _liveMilesTimer = null;
-  }
-
-  Future<Trip?> stopTracking({
-    double tips = 0,
-    String notes = '',
-    String source = 'gps',
-  }) async {
-    final wasAuto = _tracker.isAutoStarted;
-    final result = _tracker.stop();
-    tracking = false;
-    liveMiles = 0;
-    _stopLiveMilesPoll();
-    notifyListeners();
-
-    await _lockScreen.publishImmediate(tracking: false);
-    unawaited(_publishHomeWidget());
-
-    if (_premium.autoDetectEnabled) {
-      _autoDetect.resumeAfterTrip();
-      await _syncAutoDetectMonitoring();
-    }
-
-    // Auto-detect uses a higher floor so parking-lot noise doesn't create trips.
-    final minMiles = wasAuto ? 0.25 : 0.1;
-    if (result.miles < minMiles) return null;
-
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final refined = await _mapMatch.refine(
-      points: result.route,
-      gpsMiles: result.miles,
-    );
-    return saveTrip(
-      date: today,
-      miles: refined.miles,
-      tips: tips,
-      notes: notes,
-      source: wasAuto ? 'autodetect' : source,
-      isBusiness: true,
-      startLat: result.start?.lat,
-      startLng: result.start?.lng,
-      endLat: result.end?.lat,
-      endLng: result.end?.lng,
-      route: refined.route,
-    );
-  }
-
-  Future<void> setMapMatchEnabled(bool enabled) =>
-      _mapMatch.setEnabled(enabled);
-
-  Future<Trip> saveTrip({
-    int? id,
-    required String date,
-    required double miles,
-    double tips = 0,
-    String notes = '',
-    String source = 'manual',
-    bool isBusiness = true,
-    double? startLat,
-    double? startLng,
-    double? endLat,
-    double? endLng,
-    List<GeoPoint> route = const [],
-  }) async {
-    final Trip trip;
-    if (id != null) {
-      trip = await _supabase.updateTrip(
-        id,
-        date: date,
-        miles: miles,
-        tips: tips,
-        notes: notes,
-        isBusiness: isBusiness,
-      );
-    } else {
-      trip = await _supabase.createTrip(
-        date: date,
-        miles: miles,
-        tips: tips,
-        notes: notes,
-        source: source,
-        isBusiness: isBusiness,
-        startLat: startLat,
-        startLng: startLng,
-        endLat: endLat,
-        endLng: endLng,
-        route: route.map((p) => p.toJson()).toList(),
-      );
-    }
-    await refresh();
-    return trip;
-  }
-
-  /// One-tap Business ↔ Personal. Updates list optimistically, then syncs.
-  Future<void> setTripBusiness(int id, bool isBusiness) async {
-    final index = trips.indexWhere((t) => t.id == id);
-    if (index >= 0) {
-      trips = List<Trip>.from(trips)..[index] = trips[index].copyWith(isBusiness: isBusiness);
-      notifyListeners();
-    }
-
-    try {
-      final updated = await _supabase.setTripBusiness(id, isBusiness);
-      if (index >= 0) {
-        trips = List<Trip>.from(trips)..[index] = updated;
-      }
-      // Refresh summary so week/month/tax numbers exclude personal miles.
-      summary = await _supabase.getReportSummary();
-      reportHistory = await _supabase.getReports(reportPeriod, count: 8);
-      error = null;
-      notifyListeners();
-    } on ApiException catch (e) {
-      error = e.message;
-      await refresh();
-    } catch (e) {
-      error = 'Failed to update trip purpose: $e';
-      await refresh();
-    }
-  }
-
-  Future<void> deleteTrip(int id) async {
-    await _supabase.deleteTrip(id);
-    await refresh();
-  }
-
-  /// Full portable export of every trip (business + personal).
-  Future<void> exportAllTrips() async {
-    final all = await _supabase.getTrips();
-    await DataExportService.shareAllTrips(all);
-  }
-
-  /// Delete every trip; keep the account and settings.
-  Future<int> deleteAllTrips() async {
-    if (tracking) {
-      _tracker.stop();
-      tracking = false;
-      liveMiles = 0;
-      _stopLiveMilesPoll();
-    }
-    final n = await _supabase.deleteAllTrips();
-    await refresh();
-    unawaited(_publishHomeWidget());
-    return n;
-  }
-
-  /// Wipe cloud data for this user, clear local prefs, and end the session.
-  ///
-  /// Caller should sign out via [AuthState] after this returns.
-  Future<void> deleteAccountData() async {
-    if (tracking) {
-      _tracker.stop();
-      tracking = false;
-      liveMiles = 0;
-      _stopLiveMilesPoll();
-    }
-    try {
-      await _premium.setAutoDetect(false);
-    } catch (_) {}
-    await _supabase.deleteAccountData();
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-
-    trips = [];
-    summary = null;
-    reportHistory = [];
-    pendingFunnelPrompt = null;
-    error = null;
-    notifyListeners();
-  }
-
-  Future<void> openLocationSettings() async {
-    await Geolocator.openAppSettings();
-  }
-
   @override
   void dispose() {
+    _alive = false;
     _stopLiveMilesPoll();
     _workHoursTimer?.cancel();
+    _billing.onChanged = null;
     _billing.dispose();
-    _battery.removeListener(notifyListeners);
+    _battery.removeListener(_safeNotify);
     _workHours.removeListener(_onPowerGateChanged);
     _carBluetooth.removeListener(_onPowerGateChanged);
     _carBluetooth.dispose();
@@ -801,8 +302,8 @@ class AppState extends ChangeNotifier {
     _chargingGate.dispose();
     _activity.removeListener(_onPowerGateChanged);
     _activity.dispose();
-    _mapMatch.removeListener(notifyListeners);
-    _autoDetect.removeListener(notifyListeners);
+    _mapMatch.removeListener(_safeNotify);
+    _autoDetect.removeListener(_safeNotify);
     _autoDetect.dispose();
     unawaited(_lockScreen.clear());
     _tracker.dispose();

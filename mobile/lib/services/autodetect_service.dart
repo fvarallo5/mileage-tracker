@@ -31,17 +31,8 @@ class AutoDetectService extends ChangeNotifier {
   final Future<void> Function() onTripStarted;
   final Future<void> Function() onTripEnded;
 
-  /// ~9 mph — above jogging, typical for vehicles in traffic.
-  static const startSpeedMps = 4.0;
-
-  /// ~3.4 mph — crawl / GPS noise while stopped.
-  static const stopSpeedMps = 1.5;
-
   /// Ignore fixes worse than this (meters).
   static const maxAccuracyMeters = 55.0;
-
-  /// Must cover at least this much ground during start confirmation.
-  static const minStartDistanceMeters = 90.0;
 
   /// If we move this far during a "stop" window, cancel parking detection.
   static const stopCancelDistanceMeters = 45.0;
@@ -49,11 +40,17 @@ class AutoDetectService extends ChangeNotifier {
   /// After an auto trip ends, ignore new starts briefly (double-fire guard).
   static const postTripCooldown = Duration(seconds: 45);
 
+  /// Defaults used when a mode is not set (tests / edge).
+  static const defaultStartSpeedMps = 5.0;
+  static const defaultStopSpeedMps = 1.5;
+  static const defaultMinStartDistanceMeters = 120.0;
+
   StreamSubscription<Position>? _subscription;
   final _restart = StreamRestartScheduler();
   bool _monitoring = false;
   bool _tripActive = false;
   bool _startInFlight = false;
+  bool _endInFlight = false;
   DateTime? _drivingSince;
   DateTime? _stoppedSince;
   DateTime? _cooldownUntil;
@@ -65,10 +62,17 @@ class AutoDetectService extends ChangeNotifier {
   double _stopDistanceMeters = 0;
   Position? _activeAnchor;
   double _activeDistanceMeters = 0;
+  /// Consecutive samples in the walking band (for faster walk-tail end).
+  int _walkLikeSamples = 0;
   BatteryMode _mode = BatteryMode.balanced;
   AutoDetectPhase _phase = AutoDetectPhase.off;
   String? _statusDetail;
   double? _lastSpeedMps;
+
+  double get _startSpeedMps => _mode.startSpeedMps;
+  double get _stopSpeedMps => _mode.stopSpeedMps;
+  double get _minStartDistanceMeters => _mode.minStartDistanceMeters;
+  double get _walkCeilingMps => _mode.walkSpeedCeilingMps;
 
   bool get isMonitoring => _monitoring;
   bool get isTripActive => _tripActive;
@@ -175,7 +179,9 @@ class AutoDetectService extends ChangeNotifier {
         accuracy: base.accuracy,
         activityType: ActivityType.automotiveNavigation,
         distanceFilter: base.distanceFilter,
-        pauseLocationUpdatesAutomatically: false,
+        // Let iOS sleep GPS while stationary during idle watch (big battery win).
+        pauseLocationUpdatesAutomatically:
+            _mode.idlePauseLocationUpdatesAutomatically,
         showBackgroundLocationIndicator: true,
         allowBackgroundLocationUpdates: true,
       );
@@ -187,10 +193,12 @@ class AutoDetectService extends ChangeNotifier {
   void pauseForActiveTrip() {
     _tripActive = true;
     _startInFlight = false;
+    _endInFlight = false;
     _tripStartedAt = DateTime.now();
     _resetStartWindow();
     _resetStopWindow();
     _resetActiveDistance();
+    _walkLikeSamples = 0;
     _setPhase(AutoDetectPhase.tripActive);
   }
 
@@ -198,6 +206,7 @@ class AutoDetectService extends ChangeNotifier {
   void cancelPendingStart({String? detail}) {
     _tripActive = false;
     _startInFlight = false;
+    _endInFlight = false;
     _tripStartedAt = null;
     _resetStartWindow();
     _resetStopWindow();
@@ -215,6 +224,7 @@ class AutoDetectService extends ChangeNotifier {
   void resumeAfterTrip() {
     _tripActive = false;
     _startInFlight = false;
+    _endInFlight = false;
     _tripStartedAt = null;
     _cooldownUntil = DateTime.now().add(postTripCooldown);
     _resetStartWindow();
@@ -233,6 +243,7 @@ class AutoDetectService extends ChangeNotifier {
     _monitoring = false;
     _tripActive = false;
     _startInFlight = false;
+    _endInFlight = false;
     _tripStartedAt = null;
     _resetStartWindow();
     _resetStopWindow();
@@ -260,7 +271,7 @@ class AutoDetectService extends ChangeNotifier {
       return;
     }
 
-    if (speed >= startSpeedMps) {
+    if (speed >= _startSpeedMps) {
       _onDrivingSample(position, now, speed);
       _lastPosition = position;
       return;
@@ -272,11 +283,14 @@ class AutoDetectService extends ChangeNotifier {
       _setPhase(AutoDetectPhase.watching);
     }
 
-    if (speed <= stopSpeedMps) {
+    if (speed <= _stopSpeedMps) {
       // Idle parked — nothing to do while watching.
       _statusDetail = speed > 0
           ? 'Idle · ${mpsToMph(speed).toStringAsFixed(0)} mph'
           : 'Idle · waiting for motion';
+    } else if (speed <= _walkCeilingMps) {
+      _statusDetail =
+          'Walking pace · ${mpsToMph(speed).toStringAsFixed(0)} mph — not a trip';
     } else {
       _statusDetail = 'Slow · ${mpsToMph(speed).toStringAsFixed(0)} mph';
     }
@@ -304,7 +318,8 @@ class AutoDetectService extends ChangeNotifier {
     final elapsed = now.difference(_drivingSince!).inSeconds;
     final needSeconds = _mode.startConfirmSeconds;
     final remaining = math.max(0, needSeconds - elapsed);
-    final distOk = _startDistanceMeters >= minStartDistanceMeters;
+    final needDist = _minStartDistanceMeters;
+    final distOk = _startDistanceMeters >= needDist;
     final timeOk = elapsed >= needSeconds;
 
     _setPhase(
@@ -313,7 +328,7 @@ class AutoDetectService extends ChangeNotifier {
           '${mpsToMph(speed).toStringAsFixed(0)} mph · '
           '${_startDistanceMeters.round()} m'
           '${timeOk ? '' : ' · ${remaining}s'}'
-          '${distOk ? '' : ' · need ${minStartDistanceMeters.round()} m'}',
+          '${distOk ? '' : ' · need ${needDist.round()} m'}',
     );
 
     if (timeOk && distOk && !_startInFlight) {
@@ -357,7 +372,41 @@ class AutoDetectService extends ChangeNotifier {
       _activeAnchor = position;
     }
 
-    if (speed > stopSpeedMps) {
+    final tripAgeSec = _tripStartedAt == null
+        ? 0
+        : now.difference(_tripStartedAt!).inSeconds;
+    final minSec = _mode.minActiveTripSeconds;
+    final minM = _mode.minActiveTripMeters;
+    final mature = tripAgeSec >= minSec && _activeDistanceMeters >= minM;
+
+    // Walk-like motion after a real drive: end sooner so walk-to-door isn't miles.
+    final isWalkLike =
+        speed > _stopSpeedMps && speed <= _walkCeilingMps;
+    if (isWalkLike && mature) {
+      _walkLikeSamples += 1;
+      // ~ GPS sample every few seconds → ~75s of walk with walkTailStopConfirm.
+      final needWalk = math.max(
+        8,
+        _mode.walkTailStopConfirmSeconds ~/ 8,
+      );
+      _setPhase(
+        AutoDetectPhase.confirmingStop,
+        detail:
+            'Walking pace · ends if continues ($_walkLikeSamples/$needWalk)',
+      );
+      if (_walkLikeSamples >= needWalk && !_endInFlight) {
+        _endInFlight = true;
+        _resetStopWindow();
+        _walkLikeSamples = 0;
+        _setPhase(AutoDetectPhase.confirmingStop, detail: 'Ending trip…');
+        unawaited(onTripEnded());
+      }
+      _lastPosition = position;
+      return;
+    }
+    _walkLikeSamples = 0;
+
+    if (speed > _stopSpeedMps) {
       if (_stoppedSince != null) {
         _resetStopWindow();
         _setPhase(AutoDetectPhase.tripActive, detail: 'Moving again');
@@ -367,12 +416,7 @@ class AutoDetectService extends ChangeNotifier {
     }
 
     // Too early / too short — don't start the parked timer yet.
-    final tripAgeSec = _tripStartedAt == null
-        ? 0
-        : now.difference(_tripStartedAt!).inSeconds;
-    final minSec = _mode.minActiveTripSeconds;
-    final minM = _mode.minActiveTripMeters;
-    if (tripAgeSec < minSec || _activeDistanceMeters < minM) {
+    if (!mature) {
       _resetStopWindow();
       final needSec = math.max(0, minSec - tripAgeSec);
       final needM = math.max(0, (minM - _activeDistanceMeters).round());
@@ -419,8 +463,10 @@ class AutoDetectService extends ChangeNotifier {
       detail: 'Parked ${elapsed}s · ends in ${remaining}s',
     );
 
-    if (elapsed >= need) {
+    if (elapsed >= need && !_endInFlight) {
+      _endInFlight = true;
       _resetStopWindow();
+      _setPhase(AutoDetectPhase.confirmingStop, detail: 'Ending trip…');
       unawaited(onTripEnded());
     }
 

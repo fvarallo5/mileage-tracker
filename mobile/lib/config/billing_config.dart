@@ -3,12 +3,12 @@ import 'dart:io';
 /// In-app purchase product identifiers and paywall copy.
 ///
 /// Create matching products before release:
-/// - App Store Connect: com.mileagetracker.premium.monthly / .yearly
+/// - App Store Connect: com.ultraforge.trektrack.premium.monthly / .yearly
 /// - Play Console: premium_monthly / premium_yearly
 /// - 7-day free trial on both
 class BillingConfig {
-  static const premiumMonthlyIos = 'com.mileagetracker.premium.monthly';
-  static const premiumYearlyIos = 'com.mileagetracker.premium.yearly';
+  static const premiumMonthlyIos = 'com.ultraforge.trektrack.premium.monthly';
+  static const premiumYearlyIos = 'com.ultraforge.trektrack.premium.yearly';
   static const premiumMonthlyAndroid = 'premium_monthly';
   static const premiumYearlyAndroid = 'premium_yearly';
 

@@ -6,15 +6,13 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../config/app_config.dart';
-
 typedef LockScreenTripHandler = Future<String> Function();
 
 /// Lock-screen / notification shade trip controls with live mile updates.
 ///
 /// Android: ongoing public notification with Start / Stop actions.
-/// iOS: time-sensitive banner with the same actions (Live Activity would need
-/// a Widget Extension — this covers lock-screen actions + live text updates).
+/// iOS: quiet updates while tracking; banner only on start/stop transitions
+/// (Live Activity would need a Widget Extension).
 class LockScreenTripService {
   LockScreenTripService();
 
@@ -101,7 +99,7 @@ class LockScreenTripService {
           channelId,
           'Trip controls',
           description: 'Lock screen Start / Stop and live trip miles',
-          importance: Importance.high,
+          importance: Importance.low,
         ),
       );
     }
@@ -111,7 +109,7 @@ class LockScreenTripService {
     if (enabled) {
       await requestPermissions();
       await _drainPendingAction();
-      await publish(tracking: false);
+      // Don't push a "ready / tap to start" banner on launch — only while tracking.
     }
   }
 
@@ -147,8 +145,8 @@ class LockScreenTripService {
       return;
     }
     final ok = await requestPermissions();
-    if (ok) {
-      await publish(tracking: _tracking, miles: _miles);
+    if (ok && _tracking) {
+      await publish(tracking: true, miles: _miles, alert: false);
     }
   }
 
@@ -156,68 +154,69 @@ class LockScreenTripService {
     required bool tracking,
     double miles = 0,
     bool isAuto = false,
+    bool alert = false,
   }) async {
     if (!_initialized || !enabled) return;
 
+    final wasTracking = _tracking;
     _tracking = tracking;
     _miles = miles;
 
+    // When not tracking, remove the notification entirely so "Tap to stop"
+    // never lingers after a trip ends.
+    if (!tracking) {
+      _lastPublish = null;
+      await clear();
+      return;
+    }
+
     // Throttle live mile updates so we don't hammer the notification manager.
     final now = DateTime.now();
-    if (tracking &&
+    if (!alert &&
+        wasTracking &&
         _lastPublish != null &&
-        now.difference(_lastPublish!) < const Duration(seconds: 2)) {
+        now.difference(_lastPublish!) < const Duration(seconds: 3)) {
       return;
     }
     _lastPublish = now;
 
-    final title = tracking
-        ? (isAuto ? 'Auto trip in progress' : 'Trip in progress')
-        : '${AppConfig.appName} ready';
-    final body = tracking
-        ? '${miles.toStringAsFixed(2)} mi · Tap Stop when you park'
-        : 'Start a trip from the lock screen or notification';
+    final title = isAuto ? 'Auto trip in progress' : 'Trip in progress';
+    final body = '${miles.toStringAsFixed(2)} mi · Tap Stop when you park';
 
-    final androidActions = tracking
-        ? <AndroidNotificationAction>[
-            const AndroidNotificationAction(
-              actionStop,
-              'Stop & save',
-              showsUserInterface: true,
-              cancelNotification: false,
-            ),
-          ]
-        : <AndroidNotificationAction>[
-            const AndroidNotificationAction(
-              actionStart,
-              'Start trip',
-              showsUserInterface: true,
-              cancelNotification: false,
-            ),
-          ];
+    // Banner only on true start (or explicit alert). Mile ticks stay silent.
+    final shouldBanner = alert || !wasTracking;
 
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
         channelId,
         'Trip controls',
         channelDescription: 'Lock screen Start / Stop and live trip miles',
-        importance: Importance.high,
-        priority: Priority.high,
+        importance: Importance.low,
+        priority: Priority.low,
         ongoing: true,
         autoCancel: false,
         onlyAlertOnce: true,
         showWhen: true,
         category: AndroidNotificationCategory.service,
         visibility: NotificationVisibility.public,
-        actions: androidActions,
+        actions: const [
+          AndroidNotificationAction(
+            actionStop,
+            'Stop & save',
+            showsUserInterface: true,
+            cancelNotification: false,
+          ),
+        ],
         icon: '@mipmap/ic_launcher',
       ),
       iOS: DarwinNotificationDetails(
-        presentAlert: true,
-        presentBanner: true,
+        presentAlert: shouldBanner,
+        presentBanner: shouldBanner,
         presentList: true,
         presentSound: false,
-        interruptionLevel: InterruptionLevel.timeSensitive,
+        interruptionLevel: shouldBanner
+            ? InterruptionLevel.timeSensitive
+            : InterruptionLevel.passive,
         categoryIdentifier: 'trektrack_trip',
         threadIdentifier: 'trektrack_trip',
       ),
@@ -228,7 +227,7 @@ class LockScreenTripService {
       title: title,
       body: body,
       notificationDetails: details,
-      payload: tracking ? actionStop : actionStart,
+      payload: actionStop,
     );
   }
 
@@ -239,12 +238,31 @@ class LockScreenTripService {
     bool isAuto = false,
   }) async {
     _lastPublish = null;
-    await publish(tracking: tracking, miles: miles, isAuto: isAuto);
+    await publish(
+      tracking: tracking,
+      miles: miles,
+      isAuto: isAuto,
+      alert: tracking, // banner once when a trip starts; clear when it ends
+    );
   }
 
   Future<void> clear() async {
     if (!_initialized) return;
-    await _plugin.cancel(id: notificationId);
+    try {
+      await _plugin.cancel(id: notificationId);
+    } catch (_) {}
+  }
+
+  /// Stronger clear after trip end (iOS sometimes keeps the last banner).
+  Future<void> clearAll() async {
+    if (!_initialized) return;
+    _tracking = false;
+    _miles = 0;
+    _lastPublish = null;
+    try {
+      await _plugin.cancel(id: notificationId);
+      await _plugin.cancelAll();
+    } catch (_) {}
   }
 
   Future<void> _onResponse(NotificationResponse response) async {

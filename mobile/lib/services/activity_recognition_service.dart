@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Optional gate: only run auto-detect GPS watching when the OS reports
@@ -49,6 +48,15 @@ class ActivityRecognitionService extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+    if (Platform.isAndroid) {
+      // Force-off if a previous build enabled the gate.
+      gateEnabled = false;
+      available = false;
+      hasPermission = false;
+      await prefs.setBool(_gateKey, false);
+      notifyListeners();
+      return;
+    }
     gateEnabled = prefs.getBool(_gateKey) ?? false;
     if (gateEnabled) {
       await start();
@@ -59,6 +67,16 @@ class ActivityRecognitionService extends ChangeNotifier {
   }
 
   Future<void> setGateEnabled(bool enabled) async {
+    if (enabled && Platform.isAndroid) {
+      // Not offered on Android (Play policy). Keep gate off.
+      gateEnabled = false;
+      available = false;
+      hasPermission = false;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_gateKey, false);
+      notifyListeners();
+      return;
+    }
     if (enabled) {
       final ok = await ensurePermission();
       if (!ok) {
@@ -91,23 +109,21 @@ class ActivityRecognitionService extends ChangeNotifier {
 
   Future<bool> ensurePermission() async {
     if (kIsWeb) return false;
+    if (Platform.isAndroid) {
+      // Play Health Apps policy: do not use ACTIVITY_RECOGNITION.
+      // Gate is unavailable; GPS-based auto-detect still works.
+      hasPermission = false;
+      available = false;
+      notifyListeners();
+      return false;
+    }
     if (Platform.isIOS) {
       // iOS prompts via NSMotionUsageDescription on first CMMotionActivity use.
       hasPermission = true;
       return true;
     }
-    if (!Platform.isAndroid) {
-      hasPermission = true;
-      return true;
-    }
-
-    var status = await Permission.activityRecognition.status;
-    if (status.isDenied) {
-      status = await Permission.activityRecognition.request();
-    }
-    hasPermission = status.isGranted || status.isLimited;
-    notifyListeners();
-    return hasPermission;
+    hasPermission = true;
+    return true;
   }
 
   Future<void> start() async {

@@ -177,12 +177,12 @@ class _ImportScreenState extends State<ImportScreen> {
               itemBuilder: (context, i) {
                 final p = _platforms[i];
                 final selected = _platform == p.$1;
-                return FilterChip(
+                return _PlatformChip(
+                  label: p.$2,
+                  icon: p.$3,
+                  brand: p.$4,
                   selected: selected,
-                  showCheckmark: false,
-                  avatar: Icon(p.$3, size: 16, color: selected ? p.$4 : AppColors.textMuted),
-                  label: Text(p.$2),
-                  onSelected: (_) => setState(() {
+                  onSelected: () => setState(() {
                     _platform = p.$1;
                     _preview = null;
                   }),
@@ -350,6 +350,60 @@ class _ImportScreenState extends State<ImportScreen> {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Brand-colored platform tab with theme-aware label contrast (esp. light mode).
+class _PlatformChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color brand;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  const _PlatformChip({
+    required this.label,
+    required this.icon,
+    required this.brand,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    // Brand tints stay light; labels use navy/white so they never wash out.
+    final bg = selected
+        ? brand.withValues(alpha: p.isLight ? 0.12 : 0.22)
+        : (p.isLight ? p.surface3 : p.surface2);
+    final border = selected
+        ? brand.withValues(alpha: p.isLight ? 0.55 : 0.7)
+        : p.border;
+    final labelColor = selected ? p.text : p.textMuted;
+    // On light mode pure black brand icons (Uber) need a softer tint when unselected.
+    final iconColor = selected
+        ? (p.isLight && brand.computeLuminance() < 0.08
+            ? p.text
+            : brand)
+        : p.textMuted;
+
+    return FilterChip(
+      selected: selected,
+      showCheckmark: false,
+      backgroundColor: bg,
+      selectedColor: bg,
+      side: BorderSide(color: border, width: selected ? 1.5 : 1),
+      avatar: Icon(icon, size: 16, color: iconColor),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          color: labelColor,
+        ),
+      ),
+      onSelected: (_) => onSelected(),
     );
   }
 }

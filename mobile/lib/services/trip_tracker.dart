@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -28,6 +29,8 @@ class TripTracker {
   /// Don't write SharedPreferences more often than this while driving.
   static const _persistMinInterval = Duration(seconds: 3);
 
+  static const _startedAtKey = 'tracking_started_at';
+
   StreamSubscription<Position>? _subscription;
   final List<Position> _positions = [];
   double _miles = 0;
@@ -36,6 +39,9 @@ class TripTracker {
   bool _autoStarted = false;
   BatteryMode _batteryMode = BatteryMode.balanced;
   DateTime? _lastPersistAt;
+  DateTime? _startedAt;
+  /// Bumps on start/stop so in-flight SharedPreferences writes can't revive a stopped trip.
+  int _sessionEpoch = 0;
   final _restart = StreamRestartScheduler();
 
   /// Latest horizontal accuracy (meters) for UI diagnostics; null if none yet.
@@ -52,6 +58,7 @@ class TripTracker {
   double get currentMiles => _miles;
   int get positionCount => _positions.length;
   BatteryMode get batteryMode => _batteryMode;
+  DateTime? get startedAt => _startedAt;
 
   Future<String?> requestForegroundPermission() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -116,6 +123,9 @@ class TripTracker {
     _miles = prefs.getDouble(_milesKey) ?? 0;
     _background = prefs.getBool(_backgroundKey) ?? false;
     _autoStarted = prefs.getBool(_autoKey) ?? false;
+    final startedRaw = prefs.getString(_startedAtKey);
+    _startedAt = startedRaw != null ? DateTime.tryParse(startedRaw) : null;
+    _startedAt ??= DateTime.now();
     _tracking = true;
     _batteryMode = batteryMode;
     await _beginStream(background: _background);
@@ -128,19 +138,25 @@ class TripTracker {
   }) async {
     if (_tracking) return;
 
+    _sessionEpoch += 1;
+    final epoch = _sessionEpoch;
     _positions.clear();
     _miles = 0;
     _tracking = true;
     _background = background;
     _autoStarted = autoStarted;
     _batteryMode = batteryMode;
+    _startedAt = DateTime.now();
     lastAccuracyMeters = null;
     lastStreamError = null;
+    _lastPersistAt = null;
     _restart.reset();
 
     // Seed one fix quickly so the first segment isn't a long silent wait.
     await _seedFirstFix();
+    if (!_tracking || epoch != _sessionEpoch) return;
     await _beginStream(background: background);
+    if (!_tracking || epoch != _sessionEpoch) return;
     await _persistSession(force: true);
   }
 
@@ -221,6 +237,7 @@ class TripTracker {
         accuracy: base.accuracy,
         activityType: ActivityType.automotiveNavigation,
         distanceFilter: base.distanceFilter,
+        // Keep active trips awake in traffic; idle watch pauses separately.
         pauseLocationUpdatesAutomatically: false,
         showBackgroundLocationIndicator: background,
         // Keep updates alive for Pro / auto / explicit background sessions.
@@ -246,14 +263,32 @@ class TripTracker {
         position.latitude,
         position.longitude,
       );
+      final dtMs =
+          position.timestamp.difference(last.timestamp).inMilliseconds;
 
       if (!shouldAcceptSegment(
         meters: meters,
-        dtMs: position.timestamp.difference(last.timestamp).inMilliseconds,
+        dtMs: dtMs,
         distanceFilter: _batteryMode.activeLocationSettings.distanceFilter,
         currentSpeedMps: position.speed,
       )) {
         return;
+      }
+
+      // Auto trips: don't add pedestrian-speed segments (walk-to-door tails).
+      // Manual GPS trips still count all accepted movement.
+      if (_autoStarted) {
+        final segmentSpeed =
+            dtMs > 0 ? meters / (dtMs / 1000.0) : position.speed;
+        final reported =
+            position.speed >= 0 ? position.speed : segmentSpeed;
+        final speed = math.max(segmentSpeed, reported);
+        if (speed >= 0 &&
+            speed < _batteryMode.minSegmentSpeedMpsForAutoMiles) {
+          // Still keep the fix for path continuity, but not the miles.
+          _positions.add(position);
+          return;
+        }
       }
 
       _miles += meters / 1609.34;
@@ -303,28 +338,49 @@ class TripTracker {
   }
 
   /// Stops tracking and returns miles + sparse route for map / cloud.
-  TripTrackResult stop() {
+  ///
+  /// Awaits clearing the persisted session so a kill/relaunch cannot revive
+  /// the trip after stop (in-flight GPS persists are invalidated via epoch).
+  Future<TripTrackResult> stop() async {
+    final epoch = _sessionEpoch;
+    _sessionEpoch += 1;
     _tracking = false;
     _background = false;
     _autoStarted = false;
-    _subscription?.cancel();
+    await _subscription?.cancel();
     _subscription = null;
     _restart.cancel();
 
     final route = _positions
         .map((p) => GeoPoint(p.latitude, p.longitude))
         .toList(growable: false);
-    final result = TripTrackResult(miles: _miles, route: route);
+    final endedAt = DateTime.now();
+    final result = TripTrackResult(
+      miles: _miles,
+      route: route,
+      startedAt: _startedAt ?? endedAt,
+      endedAt: endedAt,
+    );
 
     _positions.clear();
     _miles = 0;
+    _startedAt = null;
     lastAccuracyMeters = null;
-    unawaited(_clearSession());
+    await _clearSession();
+    // If a stale persist raced us, clear again (epoch already advanced).
+    if (epoch + 1 == _sessionEpoch) {
+      await _clearSession();
+    }
     return result;
   }
 
   Future<void> _persistSession({bool force = false}) async {
     if (!_tracking) return;
+    final epoch = _sessionEpoch;
+    final miles = _miles;
+    final background = _background;
+    final autoStarted = _autoStarted;
+    final startedAt = _startedAt;
     final now = DateTime.now();
     if (!force &&
         _lastPersistAt != null &&
@@ -333,10 +389,18 @@ class TripTracker {
     }
     _lastPersistAt = now;
     final prefs = await SharedPreferences.getInstance();
+    // Drop write if trip stopped (or restarted) while we awaited prefs.
+    if (!_tracking || epoch != _sessionEpoch) return;
     await prefs.setBool(_activeKey, true);
-    await prefs.setDouble(_milesKey, _miles);
-    await prefs.setBool(_backgroundKey, _background);
-    await prefs.setBool(_autoKey, _autoStarted);
+    await prefs.setDouble(_milesKey, miles);
+    await prefs.setBool(_backgroundKey, background);
+    await prefs.setBool(_autoKey, autoStarted);
+    if (startedAt != null) {
+      await prefs.setString(_startedAtKey, startedAt.toIso8601String());
+    }
+    if (!_tracking || epoch != _sessionEpoch) {
+      await _clearSession();
+    }
   }
 
   Future<void> _clearSession() async {
@@ -345,6 +409,7 @@ class TripTracker {
     await prefs.remove(_milesKey);
     await prefs.remove(_backgroundKey);
     await prefs.remove(_autoKey);
+    await prefs.remove(_startedAtKey);
   }
 
   void dispose() {

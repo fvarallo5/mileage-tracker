@@ -13,13 +13,21 @@ import '../widgets/trip_tile.dart';
 import '../widgets/trips_map.dart';
 import 'import_screen.dart';
 
-class TripsScreen extends StatelessWidget {
+class TripsScreen extends StatefulWidget {
   const TripsScreen({super.key});
+
+  @override
+  State<TripsScreen> createState() => _TripsScreenState();
+}
+
+class _TripsScreenState extends State<TripsScreen> {
+  bool _savingSamples = false;
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, state, _) {
+        final hasMapGeometry = state.trips.any((t) => t.hasMapGeometry);
         return RefreshIndicator(
           color: AppColors.accent,
           onRefresh: state.refresh,
@@ -53,9 +61,21 @@ class TripsScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               SectionHeader(
                 title: 'Trip map',
-                subtitle: 'GPS routes from logged trips',
+                subtitle: hasMapGeometry
+                    ? 'GPS routes from logged trips'
+                    : state.trips.isEmpty
+                        ? 'Sample preview until you log a GPS trip'
+                        : 'Waiting for a trip with a saved GPS route',
               ),
-              TripsMap(trips: state.trips),
+              TripsMap(
+                trips: state.trips,
+                savingSamples: _savingSamples,
+                onSaveSamples: state.connected &&
+                        !hasMapGeometry &&
+                        state.trips.isEmpty
+                    ? () => _saveSamples(context, state)
+                    : null,
+              ),
               const SizedBox(height: AppSpacing.lg),
               SectionHeader(
                 title: 'Recent Trips',
@@ -88,6 +108,24 @@ class TripsScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _saveSamples(BuildContext context, AppState state) async {
+    setState(() => _savingSamples = true);
+    try {
+      final n = await state.seedSampleMapTrips();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved $n sample GPS trips')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save samples: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _savingSamples = false);
+    }
   }
 
   String _tripsSubtitle(List<Trip> trips) {

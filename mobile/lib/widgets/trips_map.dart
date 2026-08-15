@@ -2,55 +2,52 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../data/sample_map_trips.dart';
 import '../models/trip.dart';
 import '../theme/app_theme.dart';
 
-/// Map of logged GPS trips. Uses existing stored points only (no live GPS).
+/// Map of logged GPS trips. Uses stored points only (no live GPS).
+///
+/// - Trips with geometry → real routes
+/// - Trips exist but none have GPS paths → empty state (not samples)
+/// - No trips at all → optional sample preview
 class TripsMap extends StatelessWidget {
   final List<Trip> trips;
   final double height;
+  final VoidCallback? onSaveSamples;
+  final bool savingSamples;
 
   const TripsMap({
     super.key,
     required this.trips,
     this.height = 220,
+    this.onSaveSamples,
+    this.savingSamples = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final mapped = trips.where((t) => t.hasMapGeometry).toList();
+    final real = trips.where((t) => t.hasMapGeometry).toList();
+    final hasAnyTrips = trips.isNotEmpty;
+    final isSample = real.isEmpty && !hasAnyTrips;
+    final noGeometryYet = real.isEmpty && hasAnyTrips;
+    final mapped = isSample ? SampleMapTrips.asTrips() : real;
+
+    if (noGeometryYet) {
+      return _EmptyMapShell(
+        height: height,
+        message:
+            'You have ${trips.length} trip${trips.length == 1 ? '' : 's'}, '
+            'but none have a GPS route yet. New tracked trips will draw here. '
+            'If they still don\'t, run Supabase migration 002_trip_routes.sql.',
+      );
+    }
 
     if (mapped.isEmpty) {
-      return Container(
+      return _EmptyMapShell(
         height: height,
-        decoration: BoxDecoration(
-          color: p.surface,
-          borderRadius: BorderRadius.circular(AppRadii.lg),
-          border: Border.all(color: p.border),
-        ),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.map_outlined, size: 32, color: p.textMuted),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Trip map',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'GPS and auto-detect trips appear here after you save them. Manual imports stay list-only.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-        ),
+        message: 'No routes to show yet. Start a GPS trip or log one with a path.',
       );
     }
 
@@ -58,8 +55,7 @@ class TripsMap extends StatelessWidget {
     final markers = <Marker>[];
     final allPoints = <LatLng>[];
 
-    for (var i = 0; i < mapped.length; i++) {
-      final trip = mapped[i];
+    for (final trip in mapped) {
       final pts = trip.mapPoints
           .map((g) => LatLng(g.lat, g.lng))
           .toList(growable: false);
@@ -70,7 +66,7 @@ class TripsMap extends StatelessWidget {
       polylines.add(
         Polyline(
           points: pts,
-          color: color.withValues(alpha: 0.85),
+          color: color.withValues(alpha: isSample ? 0.7 : 0.85),
           strokeWidth: 3.5,
         ),
       );
@@ -92,6 +88,13 @@ class TripsMap extends StatelessWidget {
           ),
         );
       }
+    }
+
+    if (allPoints.isEmpty) {
+      return _EmptyMapShell(
+        height: height,
+        message: 'No map points available.',
+      );
     }
 
     final bounds = LatLngBounds.fromPoints(allPoints);
@@ -119,9 +122,12 @@ class TripsMap extends StatelessWidget {
               ),
             ),
             children: [
+              // Carto Voyager — cleaner, more modern basemap than plain OSM.
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.mileagetracker.mileage_tracker',
+                urlTemplate:
+                    'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.ultraforge.trektrack',
+                retinaMode: RetinaMode.isHighDensity(context),
               ),
               PolylineLayer(polylines: polylines),
               MarkerLayer(markers: markers),
@@ -138,7 +144,9 @@ class TripsMap extends StatelessWidget {
                 border: Border.all(color: p.border),
               ),
               child: Text(
-                '${mapped.length} GPS trip${mapped.length == 1 ? '' : 's'} on map',
+                isSample
+                    ? 'Sample routes (preview)'
+                    : '${mapped.length} GPS trip${mapped.length == 1 ? '' : 's'} on map',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -146,6 +154,62 @@ class TripsMap extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+          if (isSample && onSaveSamples != null)
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: FilledButton.tonal(
+                onPressed: savingSamples ? null : onSaveSamples,
+                style: FilledButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+                child: savingSamples
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save samples', style: TextStyle(fontSize: 12)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyMapShell extends StatelessWidget {
+  final double height;
+  final String message;
+
+  const _EmptyMapShell({required this.height, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      height: height,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(AppSpacing.card),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: p.border),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.map_outlined, color: p.textMuted, size: 36),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: p.textMuted, height: 1.35),
           ),
         ],
       ),
