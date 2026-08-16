@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.ultraforge.trektrack",
+      "sha256_cert_fingerprints": [
+        "E4:5C:32:F3:BA:89:94:52:29:29:CA:5A:17:5D:CD:9D:BE:51:10:1F:6F:50:DD:FD:11:47:90:68:03:B7:8C:D3"
+      ]
+    }
+  }
+]
