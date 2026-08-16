@@ -10,6 +10,8 @@ class AppConfig {
   /// Prefer the marketing site.
   static const productionPrivacyUrl = 'https://trektrack.pro/privacy.html';
   static const productionTermsUrl = 'https://trektrack.pro/terms.html';
+  static const productionDeleteAccountUrl =
+      'https://trektrack.pro/delete-account.html';
 
   /// Free tier: auto-detect trips allowed per calendar month.
   static const freeAutoTripsPerMonth = 30;
@@ -30,6 +32,8 @@ class AppConfig {
 
   static String get termsOfServiceUrl =>
       termsUrlOverride.isNotEmpty ? termsUrlOverride : productionTermsUrl;
+
+  static String get deleteAccountUrl => productionDeleteAccountUrl;
 
   static String get supabaseUrl => SupabaseConfig.url;
 

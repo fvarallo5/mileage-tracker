@@ -89,6 +89,17 @@ class _DataControlsBodyState extends State<_DataControlsBody> {
           enabled: !_busy,
           onTap: _busy ? null : () => _deleteAccount(context, state),
         ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.link, color: p.textMuted, size: 20),
+          title: const Text('Request deletion online'),
+          subtitle: Text(
+            'Web form / email if you cannot use the app',
+            style: TextStyle(fontSize: 12, color: p.textMuted),
+          ),
+          trailing: Icon(Icons.open_in_new, size: 16, color: p.textMuted),
+          onTap: () => openUrl(AppConfig.deleteAccountUrl),
+        ),
         const SizedBox(height: AppSpacing.md),
         ListTile(
           contentPadding: EdgeInsets.zero,
