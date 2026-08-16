@@ -92,9 +92,20 @@ class _DataControlsBodyState extends State<_DataControlsBody> {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.link, color: p.textMuted, size: 20),
-          title: const Text('Request deletion online'),
+          title: const Text('Request data deletion online'),
           subtitle: Text(
-            'Web form / email if you cannot use the app',
+            'Web page / email if you cannot use the app',
+            style: TextStyle(fontSize: 12, color: p.textMuted),
+          ),
+          trailing: Icon(Icons.open_in_new, size: 16, color: p.textMuted),
+          onTap: () => openUrl(AppConfig.deleteDataUrl),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.person_remove_outlined, color: p.textMuted, size: 20),
+          title: const Text('Request account deletion online'),
+          subtitle: Text(
+            'Full account removal request page',
             style: TextStyle(fontSize: 12, color: p.textMuted),
           ),
           trailing: Icon(Icons.open_in_new, size: 16, color: p.textMuted),
