@@ -7,17 +7,22 @@ import TripForm from './components/TripForm';
 import TripList from './components/TripList';
 import Reports from './components/Reports';
 import ReportStats from './components/ReportStats';
+import Team from './components/Team';
+import Jobs from './components/Jobs';
+import { clearInviteFromUrl, inviteTokenFromUrl, orgApi } from './orgApi';
 
 const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 function MainApp({ auth, onSignOut }) {
-  const [tab, setTab] = useState('trips');
+  const [tab, setTab] = useState(() => (inviteTokenFromUrl() ? 'team' : 'trips'));
   const [trips, setTrips] = useState([]);
   const [summary, setSummary] = useState(null);
   const [mileageRate, setMileageRate] = useState('0.725');
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [inviteNotice, setInviteNotice] = useState(null);
+  const [teamTick, setTeamTick] = useState(0);
 
   const loadData = useCallback(async () => {
     setError(null);
@@ -41,6 +46,32 @@ function MainApp({ auth, onSignOut }) {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (auth.isAnonymous) return;
+    const token = inviteTokenFromUrl();
+    if (!token) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await orgApi.acceptInvite(token);
+        if (cancelled) return;
+        clearInviteFromUrl();
+        setInviteNotice('You joined the team.');
+        setTeamTick((n) => n + 1);
+        setTab('team');
+      } catch (err) {
+        if (cancelled) return;
+        setError(err.message);
+        setTab('team');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.isAnonymous]);
 
   async function handleCreateTrip(data) {
     if (editing) {
@@ -100,6 +131,7 @@ function MainApp({ auth, onSignOut }) {
       </header>
 
       {error && <div className="error-banner">{error}</div>}
+      {inviteNotice && <div className="notice-banner">{inviteNotice}</div>}
 
       {summary && (
         <div className="stats-grid" style={{ marginBottom: '2rem' }}>
@@ -133,6 +165,12 @@ function MainApp({ auth, onSignOut }) {
         </button>
         <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>
           Reports
+        </button>
+        <button className={`tab ${tab === 'team' ? 'active' : ''}`} onClick={() => setTab('team')}>
+          Team
+        </button>
+        <button className={`tab ${tab === 'jobs' ? 'active' : ''}`} onClick={() => setTab('jobs')}>
+          Jobs
         </button>
       </nav>
 
@@ -171,16 +209,20 @@ function MainApp({ auth, onSignOut }) {
 
       {tab === 'reports' && <Reports />}
 
+      {tab === 'team' && <Team key={teamTick} auth={auth} />}
+
+      {tab === 'jobs' && <Jobs key={teamTick} auth={auth} />}
+
       <footer className="app-footer">
         <a
-          href="https://cdn.jsdelivr.net/gh/fvarallo5/mileage-tracker@main/static/privacy.html"
+          href="https://trektrack.pro/privacy.html"
           target="_blank"
           rel="noopener noreferrer"
         >
           Privacy Policy
         </a>
         <span aria-hidden="true">·</span>
-        <a href="mailto:info@trektrack.pro">info@trektrack.pro</a>
+        <a href="mailto:support.ultraforgellc@gmail.com">support.ultraforgellc@gmail.com</a>
       </footer>
     </div>
   );
@@ -197,12 +239,16 @@ export default function App() {
     );
   }
 
-  if (!auth.isSignedIn) {
+  if (!auth.isSignedIn || auth.needsPasswordUpdate) {
     return (
       <Auth
         onSignIn={auth.signIn}
         onSignUp={auth.signUp}
         onGuest={auth.signInAnonymously}
+        onForgotPassword={auth.requestPasswordReset}
+        onUpdatePassword={auth.updatePassword}
+        needsPasswordUpdate={auth.needsPasswordUpdate}
+        linkError={auth.linkError}
       />
     );
   }
