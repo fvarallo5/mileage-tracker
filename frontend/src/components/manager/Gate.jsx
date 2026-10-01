@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTeam } from '../../context/TeamContext.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 
 function BrandHeader({ onSignOut, children }) {
   return (
@@ -7,6 +8,7 @@ function BrandHeader({ onSignOut, children }) {
       <header className="mgr-brand gate-brand">
         <img src="/icon-192.png" alt="" width="40" height="40" />
         <strong>TrekTrack</strong>
+        <ThemeToggle />
         <button type="button" className="btn-ghost btn-sm" onClick={onSignOut}>
           Sign out
         </button>

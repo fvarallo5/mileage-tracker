@@ -1,7 +1,29 @@
-:root {
+:root,
+[data-theme='light'] {
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-2: #eef0f3;
+  --surface-3: #e6e9ee;
+  --border: #cfd5de;
+  --text: #101418;
+  --text-muted: #4b5563;
+  --accent: #0b63ce;
+  --accent-dim: #084ea3;
+  --green: #0f7a4a;
+  --green-dim: #d7f0e4;
+  --amber: #b45309;
+  --red: #c2413a;
+  --radius: 8px;
+  --shadow: 0 1px 0 rgba(16, 20, 24, 0.04);
+  --side: #f8f9fb;
+  --expand: #f6f7f9;
+}
+
+[data-theme='dark'] {
   --bg: #0f1419;
   --surface: #1a2332;
   --surface-2: #243044;
+  --surface-3: #2a3648;
   --border: #2d3f56;
   --text: #e8edf4;
   --text-muted: #8b9cb3;
@@ -11,8 +33,10 @@
   --green-dim: #065f46;
   --amber: #fbbf24;
   --red: #f87171;
-  --radius: 12px;
+  --radius: 8px;
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  --side: #10161e;
+  --expand: #141b26;
 }
 
 * {
@@ -22,11 +46,16 @@
 }
 
 body {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
-  line-height: 1.5;
+  line-height: 1.45;
   min-height: 100vh;
+  font-size: 14px;
+  font-feature-settings: 'ss01', 'cv11', 'tnum';
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: auto;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
@@ -767,7 +796,7 @@ div.job-card {
 }
 
 .mgr-side {
-  background: #10161e;
+  background: var(--side);
   border-right: 1px solid var(--border);
   padding: 1.25rem 0.75rem;
   display: flex;
@@ -826,6 +855,10 @@ div.job-card {
 .mgr-side-foot {
   margin-top: auto;
   padding: 0.25rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
 }
 
 .mgr-main {
@@ -907,17 +940,25 @@ div.job-card {
 .kpi {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 0.85rem 0.9rem;
   min-height: 84px;
 }
 
+.kpi .label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
 .kpi-value {
-  font-size: 1.25rem;
-  font-weight: 650;
-  letter-spacing: -0.03em;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
-  margin-top: 0.2rem;
+  margin-top: 0.25rem;
+  color: var(--text);
 }
 
 .kpi.warn .kpi-value {
@@ -936,7 +977,7 @@ div.job-card {
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 1rem 1rem 0.5rem;
 }
 
@@ -1009,7 +1050,7 @@ div.job-card {
 }
 
 .data-table tr.expand-row td {
-  background: #141b26;
+  background: var(--expand);
   padding: 0.4rem 0.7rem 0.9rem;
 }
 
@@ -1148,6 +1189,204 @@ div.job-card {
 .gate-card p {
   color: var(--text-muted);
   margin: 0.6rem 0 1rem;
+}
+
+.board-page {
+  max-width: none;
+}
+
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.day-nav input[type='date'] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  padding: 0.35rem 0.5rem;
+}
+
+.hide-done {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.board {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.75rem;
+  min-height: calc(100vh - 11rem);
+  align-items: stretch;
+}
+
+.board-col {
+  flex: 0 0 260px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.board-col-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.board-col-name {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.board-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.65rem;
+  flex: 1;
+}
+
+.board-empty {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  padding: 0.5rem 0.15rem;
+}
+
+.job-tile {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 0.65rem 0.7rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.job-tile:hover {
+  border-color: var(--accent);
+}
+
+.job-tile-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.25rem;
+}
+
+.job-tile-top span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.job-tile-stop {
+  font-size: 0.82rem;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-tile-stop.muted {
+  color: var(--text-muted);
+}
+
+.job-tile-status {
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.job-tile.status-done {
+  opacity: 0.72;
+}
+
+.job-tile.status-cancelled {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.drawer-root {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(16, 20, 24, 0.35);
+  cursor: pointer;
+}
+
+.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(520px, 100%);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -12px 0 40px rgba(16, 20, 24, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
+.drawer-head h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.drawer-form {
+  padding: 1rem 1.1rem 2rem;
+}
+
+.drawer-form .address-block {
+  margin-bottom: 0.85rem;
+}
+
+.drawer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
 }
 
 @media (max-width: 1100px) {

@@ -4,6 +4,7 @@ import Jobs from '../Jobs.jsx';
 import Overview from './Overview.jsx';
 import People from './People.jsx';
 import DriverTable from './DriverTable.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 
 const NAV = [
   ['overview', 'Overview'],
@@ -39,6 +40,7 @@ export default function Shell({ onSignOut }) {
           ))}
         </nav>
         <div className="mgr-side-foot">
+          <ThemeToggle />
           <button type="button" className="btn-ghost btn-sm" onClick={onSignOut}>
             Sign out
           </button>

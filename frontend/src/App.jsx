@@ -1,6 +1,7 @@
 import { useAuth } from './auth';
 import Auth from './components/Auth';
 import { CreateTeam, DriverHome } from './components/manager/Gate';
+import ThemeToggle from './components/manager/ThemeToggle';
 import Shell from './components/manager/Shell';
 import { TeamProvider, useTeam } from './context/TeamContext';
 
@@ -51,6 +52,7 @@ export default function App() {
         <header className="mgr-brand gate-brand">
           <img src="/icon-192.png" alt="" width="40" height="40" />
           <strong>TrekTrack</strong>
+          <ThemeToggle />
           <button type="button" className="btn-ghost btn-sm" onClick={auth.signOut}>
             Sign out
           </button>
