@@ -35,7 +35,7 @@ export function costLabel(category) {
 export function roleLabel(role) {
   if (role === 'owner') return 'Owner';
   if (role === 'admin') return 'Admin';
-  return 'Driver';
+  return 'Employee';
 }
 
 export function formatShortDate(iso) {

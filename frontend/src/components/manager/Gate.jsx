@@ -18,25 +18,32 @@ function BrandHeader({ onSignOut, children }) {
   );
 }
 
-export function CreateTeam({ onSignOut }) {
+export function CreateTeam({ onSignOut, defaults = {} }) {
   const { createOrg, busy, error } = useTeam();
   const [name, setName] = useState('');
+  const jobStyle = defaults.job_style || 'service';
+  const companyKind = defaults.company_kind || 'other';
+  const defaultPayType = defaults.default_pay_type || 'hourly';
 
   async function handleCreate(e) {
     e.preventDefault();
     try {
-      await createOrg(name.trim());
+      await createOrg(name.trim(), { jobStyle, companyKind, defaultPayType });
       setName('');
     } catch {
       /* error is on context */
     }
   }
 
+  const styleHint = jobStyle === 'delivery'
+    ? 'Jobs will use pickup and delivery addresses.'
+    : 'Jobs will use one site address (typical for HVAC, plumbing, and landscape).';
+
   return (
     <BrandHeader onSignOut={onSignOut}>
       <h1>Create a team</h1>
       <p className="page-sub">
-        You become the owner. Drivers keep logging in the phone app. This site is where you read the crew.
+        You become the owner. Workers keep the phone app. {styleHint}
       </p>
       {error ? <div className="error-banner">{error}</div> : null}
       <form onSubmit={handleCreate}>
@@ -48,7 +55,7 @@ export function CreateTeam({ onSignOut }) {
             onChange={(e) => setName(e.target.value)}
             maxLength={80}
             required
-            placeholder="Acme Delivery"
+            placeholder="Acme Heating"
           />
         </div>
         <button type="submit" className="btn btn-primary" disabled={busy || !name.trim()}>
@@ -64,10 +71,10 @@ export function DriverHome({ onSignOut }) {
 
   return (
     <BrandHeader onSignOut={onSignOut}>
-      <h1>Your trips stay in the app</h1>
+      <h1>Your work stays in the app</h1>
       <p>
-        You are a driver on <strong>{membership?.name}</strong>. TrekTrack on the phone is where you log miles.
-        This site is the manager dashboard.
+        You are on <strong>{membership?.name}</strong>. Jobs and tracking are in the TrekTrack phone app.
+        This site is for dispatchers and managers.
       </p>
       {error ? <div className="error-banner">{error}</div> : null}
       <button type="button" className="btn-danger" onClick={() => leaveOrg()} disabled={busy}>

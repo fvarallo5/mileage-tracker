@@ -154,6 +154,7 @@ function AddressFields({ id, title, name, setName, phone, setPhone, address, set
 
 export default function Jobs() {
   const team = useTeam();
+  const isService = team.membership?.jobStyle !== 'delivery';
   const today = isoDate(new Date());
   const [boardDate, setBoardDate] = useState(today);
   const [form, setForm] = useState(null);
@@ -287,7 +288,8 @@ export default function Jobs() {
         <div>
           <h1>Jobs</h1>
           <p className="page-sub">
-            {dayLabel} · {dayCount} {dayCount === 1 ? 'job' : 'jobs'}. Drivers see assigned stops on the phone.
+            {dayLabel} · {dayCount} {dayCount === 1 ? 'job' : 'jobs'} ·{' '}
+            {isService ? 'One site per job' : 'Pickup and delivery'}.
           </p>
         </div>
         <div className="toolbar-actions">
@@ -354,7 +356,7 @@ export default function Jobs() {
                           <span>{formatTime(job.job_time) || '—'}</span>
                         </div>
                         {stopLine(job, 'pickup') ? <div className="job-tile-stop">{stopLine(job, 'pickup')}</div> : null}
-                        {stopLine(job, 'dropoff') ? (
+                        {!isService && stopLine(job, 'dropoff') ? (
                           <div className="job-tile-stop muted">{stopLine(job, 'dropoff')}</div>
                         ) : null}
                         {job.status !== 'open' ? (
@@ -416,7 +418,7 @@ export default function Jobs() {
               </div>
               <AddressFields
                 id="pickup"
-                title="Pickup"
+                title={isService ? 'Job site' : 'Pickup'}
                 name={form.pickup_name}
                 setName={(v) => setField('pickup_name', v)}
                 phone={form.pickup_phone}
@@ -424,16 +426,18 @@ export default function Jobs() {
                 address={form.pickup}
                 setAddress={(v) => setField('pickup', v)}
               />
-              <AddressFields
-                id="dropoff"
-                title="Delivery"
-                name={form.dropoff_name}
-                setName={(v) => setField('dropoff_name', v)}
-                phone={form.dropoff_phone}
-                setPhone={(v) => setField('dropoff_phone', v)}
-                address={form.dropoff}
-                setAddress={(v) => setField('dropoff', v)}
-              />
+              {!isService ? (
+                <AddressFields
+                  id="dropoff"
+                  title="Delivery"
+                  name={form.dropoff_name}
+                  setName={(v) => setField('dropoff_name', v)}
+                  phone={form.dropoff_phone}
+                  setPhone={(v) => setField('dropoff_phone', v)}
+                  address={form.dropoff}
+                  setAddress={(v) => setField('dropoff', v)}
+                />
+              ) : null}
               <div className="form-group">
                 <label htmlFor="job-details">Details</label>
                 <textarea id="job-details" rows={3} value={form.details} onChange={(e) => setField('details', e.target.value)} />

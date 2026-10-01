@@ -183,7 +183,11 @@ export function TeamProvider({ children }) {
     setNotice,
     reload,
     run,
-    createOrg: (name) => run(() => orgApi.createOrg(name)),
+    createOrg: (name, opts) => run(() => orgApi.createOrg(name, opts)),
+    updateMemberPay: (userId, payType, hourlyRate) =>
+      run(() => orgApi.updateMemberPay(membership.orgId, userId, payType, hourlyRate)),
+    updateOrgStyle: (jobStyle) =>
+      run(() => orgApi.updateOrgStyle(membership.orgId, jobStyle)),
     invite: (email, role) => orgApi.invite(membership.orgId, email, role),
     revokeInvite: (id) => run(() => orgApi.revokeInvite(id)),
     removeMember: (userId) => run(() => orgApi.removeMember(membership.orgId, userId)),

@@ -1389,6 +1389,69 @@ div.job-card {
   margin-top: 0.5rem;
 }
 
+.choice-set {
+  border: none;
+  padding: 0;
+  margin: 0 0 1.25rem;
+}
+
+.choice-set legend {
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.55rem;
+}
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+  font-weight: 600;
+  background: var(--surface-2);
+}
+
+.choice.on {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.choice input {
+  accent-color: var(--accent);
+}
+
+.rate-input {
+  width: 5.5rem;
+  text-align: right;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  padding: 0.3rem 0.45rem;
+}
+
+.data-table select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  padding: 0.3rem 0.4rem;
+}
+
 @media (max-width: 1100px) {
   .kpi-row,
   .expand-stats {

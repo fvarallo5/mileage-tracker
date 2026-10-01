@@ -1,12 +1,16 @@
+import { useState } from 'react';
 import { useAuth } from './auth';
 import Auth from './components/Auth';
 import { CreateTeam, DriverHome } from './components/manager/Gate';
+import CompanySetup from './components/manager/CompanySetup';
 import ThemeToggle from './components/manager/ThemeToggle';
 import Shell from './components/manager/Shell';
 import { TeamProvider, useTeam } from './context/TeamContext';
+import { inviteTokenFromUrl } from './orgApi';
 
-function Workspace({ onSignOut }) {
+function Workspace({ onSignOut, user }) {
   const { loading, membership } = useTeam();
+  const [setup, setSetup] = useState(null);
 
   if (loading) {
     return (
@@ -16,7 +20,25 @@ function Workspace({ onSignOut }) {
     );
   }
 
-  if (!membership) return <CreateTeam onSignOut={onSignOut} />;
+  const meta = { ...(user?.user_metadata || {}), ...(setup || {}) };
+  const joining = Boolean(inviteTokenFromUrl());
+
+  if (!membership && !joining && !meta.company_kind) {
+    return (
+      <CompanySetup
+        onSignOut={onSignOut}
+        onDone={(answers) =>
+          setSetup({
+            company_kind: answers.companyKind,
+            job_style: answers.jobStyle,
+            default_pay_type: answers.defaultPayType,
+          })
+        }
+      />
+    );
+  }
+
+  if (!membership) return <CreateTeam onSignOut={onSignOut} defaults={meta} />;
   if (!membership.isManager) return <DriverHome onSignOut={onSignOut} />;
   return <Shell onSignOut={onSignOut} />;
 }
@@ -67,7 +89,7 @@ export default function App() {
 
   return (
     <TeamProvider key={auth.user?.id}>
-      <Workspace onSignOut={auth.signOut} />
+      <Workspace onSignOut={auth.signOut} user={auth.user} />
     </TeamProvider>
   );
 }
