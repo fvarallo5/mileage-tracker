@@ -313,8 +313,137 @@ a:hover {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: 2.25rem 1rem 1rem;
-  gap: 0.75rem;
+  padding: 2.25rem 0.85rem 0.55rem;
+  gap: 0.55rem;
+}
+
+.ui-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.ui-brand img {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.ui-hero {
+  background:
+    linear-gradient(160deg, rgba(59, 158, 255, 0.22), rgba(15, 20, 25, 0.95) 55%),
+    var(--surface);
+  border: 1px solid rgba(59, 158, 255, 0.35);
+  border-radius: 16px;
+  padding: 0.9rem 0.85rem 0.8rem;
+}
+
+.ui-hero-kicker {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9ecfff;
+  margin-bottom: 0.2rem;
+}
+
+.ui-hero-miles {
+  font-size: 1.85rem;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.ui-hero-miles span {
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--green);
+  margin-left: 0.2rem;
+}
+
+.ui-chip-row {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.ui-chip {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0.22rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(52, 211, 153, 0.14);
+  color: var(--green);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.ui-chip.amber {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--amber);
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+.ui-trip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.72rem;
+}
+
+.ui-trip-top {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 650;
+}
+
+.ui-trip-meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  margin-top: 0.2rem;
+  font-size: 0.68rem;
+}
+
+.ui-purpose {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.ui-purpose.personal {
+  color: var(--muted);
+}
+
+.ui-tabbar {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.2rem;
+  padding: 0.35rem 0.2rem 0.15rem;
+  border-top: 1px solid var(--border);
+}
+
+.ui-tab {
+  text-align: center;
+  font-size: 0.62rem;
+  font-weight: 650;
+  color: var(--muted);
+  padding: 0.3rem 0;
+}
+
+.ui-tab.active {
+  color: var(--accent);
+}
+
+.ui-tab b {
+  display: block;
+  font-size: 0.95rem;
+  line-height: 1;
+  margin-bottom: 0.1rem;
+  font-weight: 500;
 }
 
 .ui-bar {
@@ -403,6 +532,47 @@ a:hover {
   letter-spacing: -0.02em;
 }
 
+/* —— Platforms strip —— */
+.platforms-band {
+  border-block: 1px solid var(--border);
+  background: var(--bg-elevated);
+  padding: 1.35rem 0;
+}
+
+.platforms-label {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+}
+
+.platforms-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 0.65rem;
+}
+
+.platforms-list li {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.section-alt {
+  background: var(--bg-elevated);
+}
+
 /* —— Sections —— */
 section {
   padding: 4.5rem 0;
@@ -428,7 +598,7 @@ section {
 
 .features {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
 }
 
@@ -752,7 +922,10 @@ section {
     transform: none;
   }
 
-  .features,
+  .features {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .steps {
     grid-template-columns: 1fr;
   }
@@ -796,6 +969,10 @@ section {
 
   .hero {
     padding-top: 2.5rem;
+  }
+
+  .features {
+    grid-template-columns: 1fr;
   }
 }
 

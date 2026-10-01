@@ -23,14 +23,14 @@
       <div class="footer-links" style="display:flex;gap:1.25rem">
         <a href="/" style="color:var(--muted);font-weight:500;text-decoration:none">Home</a>
         <a href="terms.html" style="color:var(--muted);font-weight:500;text-decoration:none">Terms</a>
-        <a href="mailto:info@trektrack.pro" style="color:var(--muted);font-weight:500;text-decoration:none">Support</a>
+        <a href="mailto:support.ultraforgellc@gmail.com" style="color:var(--muted);font-weight:500;text-decoration:none">Support</a>
       </div>
     </div>
   </header>
 
   <div class="legal">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: August 16, 2026</p>
+    <p class="updated">Last updated: September 29, 2026 · Version 1.3</p>
 
     <p>
       TrekTrack is operated by <strong>UltraForge LLC</strong> (“we,” “us,” or “our”), a New Jersey limited
@@ -78,12 +78,31 @@
       </li>
       <li>
         <strong>Trip and expense data.</strong>
-        Dates, miles, tips or earnings you enter, notes, business vs personal purpose,
-        import source labels, and related report totals.
+        Dates, miles, tips or earnings you enter, notes, business vs personal purpose
+        (including unclassified trips), import source labels, work-shift clock times,
+        and related report totals.
       </li>
       <li>
-        <strong>Imported files.</strong>
-        If you upload a CSV export from a gig platform, we parse trip rows you choose to import into your account.
+        <strong>Receipts and uploaded files.</strong>
+        If you attach a receipt or statement to a field cost or earnings entry, we store that file
+        in your account (Supabase Storage) so you can review it later and include it in reports.
+        If you upload a CSV export from a gig platform, we parse trip rows you choose to import.
+      </li>
+      <li>
+        <strong>Profile.</strong>
+        Optional nickname and vehicle details you enter.
+      </li>
+      <li>
+        <strong>Team membership.</strong>
+        If you join or create a team, we store the team name, your role (owner, admin, or driver),
+        and invite emails. Team managers can <em>read</em> member trips, expenses, earnings, and
+        profile nicknames to review roster mileage. Managers cannot edit or delete another driver’s trips.
+      </li>
+      <li>
+        <strong>Lock-screen / Live Activity tokens.</strong>
+        On iOS, if you use Live Activity, we may store a push-to-start token so a trip can appear
+        on the lock screen when auto-detect starts in the background. These tokens are used only
+        to start or update your TrekTrack Live Activity.
       </li>
       <li>
         <strong>App preferences.</strong>
@@ -106,7 +125,8 @@
     <ul>
       <li>Calculate trip distance, mileage expenses, and earnings-related reports</li>
       <li>Sync and store your trips securely in your account</li>
-      <li>Power auto-detect, background tracking, maps, tax export packages, and lock-screen controls you enable</li>
+      <li>Power auto-detect, background tracking, maps, tax export packages, Live Activity, and lock-screen controls you enable</li>
+      <li>Let team managers you join review roster mileage and unclassified trips</li>
       <li>Authenticate you and protect account access</li>
       <li>Process Pro subscriptions and restore purchases</li>
       <li>Respond to support requests you send us</li>
@@ -123,9 +143,9 @@
 
     <h2>5. How we store and protect data</h2>
     <p>
-      Trip and settings data are stored in Supabase (hosted PostgreSQL) with authentication and
-      <strong>row-level security</strong> so users can only access their own rows.
-      Data is transmitted over HTTPS.
+      Trip, settings, and receipt files are stored in Supabase (hosted PostgreSQL and Storage) with authentication and
+      <strong>row-level security</strong>. You can access your own rows. If you belong to a team, managers of that team
+      can read your trip, expense, earnings, and profile rows. Data is transmitted over HTTPS.
     </p>
 
     <h2>6. Data retention</h2>
@@ -167,7 +187,7 @@
         <strong>Account deletion:</strong>
         Use <strong>Settings → Your data → Delete account</strong> in the app, or request online at
         <a href="https://trektrack.pro/delete-account.html">trektrack.pro/delete-account.html</a>
-        (or email <a href="mailto:info@trektrack.pro">info@trektrack.pro</a> from your account email).
+        (or email <a href="mailto:support.ultraforgellc@gmail.com">support.ultraforgellc@gmail.com</a> from your account email).
       </li>
     </ul>
 
@@ -193,7 +213,7 @@
     <p>
       Questions about privacy or data requests:<br />
       UltraForge LLC (TrekTrack)<br />
-      <a href="mailto:info@trektrack.pro">info@trektrack.pro</a><br />
+      <a href="mailto:support.ultraforgellc@gmail.com">support.ultraforgellc@gmail.com</a><br />
       Delete data:
       <a href="https://trektrack.pro/delete-data.html">https://trektrack.pro/delete-data.html</a><br />
       Delete account:
