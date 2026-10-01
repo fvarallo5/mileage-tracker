@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useTeam } from '../context/TeamContext.jsx';
+import { addressFromJob, composeAddress, trim, US_STATES } from '../lib/address.js';
+import { isoDate } from '../lib/period.js';
 import { orgApi } from '../orgApi.js';
+import { formatShortDate } from './manager/format.js';
 
-function isoDate(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+function emptyAddress() {
+  return { line1: '', line2: '', city: '', state: '', zip: '' };
 }
 
 function emptyForm(assignedUserId = '') {
@@ -14,10 +15,10 @@ function emptyForm(assignedUserId = '') {
     job_date: isoDate(new Date()),
     job_time: '',
     pickup_name: '',
-    pickup_address: '',
+    pickup: emptyAddress(),
     pickup_phone: '',
     dropoff_name: '',
-    dropoff_address: '',
+    dropoff: emptyAddress(),
     dropoff_phone: '',
     details: '',
     notes: '',
@@ -26,23 +27,43 @@ function emptyForm(assignedUserId = '') {
   };
 }
 
-function trimOrEmpty(v) {
-  return String(v ?? '').trim();
-}
-
 function payloadFromForm(form) {
+  const pickup = {
+    line1: trim(form.pickup.line1),
+    line2: trim(form.pickup.line2),
+    city: trim(form.pickup.city),
+    state: trim(form.pickup.state).toUpperCase(),
+    zip: trim(form.pickup.zip),
+  };
+  const dropoff = {
+    line1: trim(form.dropoff.line1),
+    line2: trim(form.dropoff.line2),
+    city: trim(form.dropoff.city),
+    state: trim(form.dropoff.state).toUpperCase(),
+    zip: trim(form.dropoff.zip),
+  };
   return {
-    job_number: trimOrEmpty(form.job_number),
+    job_number: trim(form.job_number),
     job_date: form.job_date,
-    job_time: trimOrEmpty(form.job_time) || null,
-    pickup_name: trimOrEmpty(form.pickup_name),
-    pickup_address: trimOrEmpty(form.pickup_address),
-    pickup_phone: trimOrEmpty(form.pickup_phone),
-    dropoff_name: trimOrEmpty(form.dropoff_name),
-    dropoff_address: trimOrEmpty(form.dropoff_address),
-    dropoff_phone: trimOrEmpty(form.dropoff_phone),
-    details: trimOrEmpty(form.details),
-    notes: trimOrEmpty(form.notes),
+    job_time: trim(form.job_time) || null,
+    pickup_name: trim(form.pickup_name),
+    pickup_line1: pickup.line1,
+    pickup_line2: pickup.line2,
+    pickup_city: pickup.city,
+    pickup_state: pickup.state,
+    pickup_zip: pickup.zip,
+    pickup_address: composeAddress(pickup),
+    pickup_phone: trim(form.pickup_phone),
+    dropoff_name: trim(form.dropoff_name),
+    dropoff_line1: dropoff.line1,
+    dropoff_line2: dropoff.line2,
+    dropoff_city: dropoff.city,
+    dropoff_state: dropoff.state,
+    dropoff_zip: dropoff.zip,
+    dropoff_address: composeAddress(dropoff),
+    dropoff_phone: trim(form.dropoff_phone),
+    details: trim(form.details),
+    notes: trim(form.notes),
     assigned_user_id: form.assigned_user_id,
     status: form.status || 'open',
   };
@@ -54,94 +75,74 @@ function formatTime(t) {
   const h = Number(parts[0]);
   const m = Number(parts[1] ?? 0);
   if (!Number.isFinite(h)) return String(t);
-  const d = new Date(2020, 0, 1, h, m);
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-}
-
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function mapsHref(address) {
-  return `https://maps.apple.com/?q=${encodeURIComponent(address)}`;
+  return new Date(2020, 0, 1, h, m).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function driverLabel(member) {
   return member.nickname || member.email || member.user_id;
 }
 
-function JobSummaryCard({ job, driver, onEdit }) {
-  const time = formatTime(job.job_time);
-  const Tag = onEdit ? 'button' : 'div';
+function AddressFields({ id, title, name, setName, phone, setPhone, address, setAddress }) {
+  function set(key, value) {
+    setAddress({ ...address, [key]: value });
+  }
   return (
-    <Tag
-      type={onEdit ? 'button' : undefined}
-      className="job-card"
-      onClick={onEdit}
-    >
-      <div className="job-card-grid">
-        <div className="job-number">{job.job_number}</div>
-        <div className="job-when">
-          <div>{formatDate(job.job_date)}</div>
-          {time ? <div className="muted">{time}</div> : null}
+    <fieldset className="address-block">
+      <legend>{title}</legend>
+      <div className="form-group">
+        <label htmlFor={`${id}-name`}>Business name</label>
+        <input id={`${id}-name`} value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label htmlFor={`${id}-line1`}>Address line 1</label>
+        <input id={`${id}-line1`} value={address.line1} onChange={(e) => set('line1', e.target.value)} autoComplete="address-line1" />
+      </div>
+      <div className="form-group">
+        <label htmlFor={`${id}-line2`}>Address line 2</label>
+        <input
+          id={`${id}-line2`}
+          value={address.line2}
+          onChange={(e) => set('line2', e.target.value)}
+          placeholder="Apt, unit"
+          autoComplete="address-line2"
+        />
+      </div>
+      <div className="form-row address-city-row">
+        <div className="form-group">
+          <label htmlFor={`${id}-city`}>City</label>
+          <input id={`${id}-city`} value={address.city} onChange={(e) => set('city', e.target.value)} autoComplete="address-level2" />
         </div>
-        <div className="job-addr">
-          {job.pickup_address ? <div>{job.pickup_address}</div> : null}
-          {job.dropoff_address ? <div className="muted">{job.dropoff_address}</div> : null}
+        <div className="form-group">
+          <label htmlFor={`${id}-state`}>State</label>
+          <select id={`${id}-state`} value={address.state} onChange={(e) => set('state', e.target.value)}>
+            <option value="">—</option>
+            {US_STATES.map((st) => (
+              <option key={st} value={st}>{st}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label htmlFor={`${id}-zip`}>ZIP</label>
+          <input id={`${id}-zip`} value={address.zip} onChange={(e) => set('zip', e.target.value)} inputMode="numeric" autoComplete="postal-code" />
         </div>
       </div>
-      {driver ? <div className="job-driver">{driver}</div> : null}
-    </Tag>
+      <div className="form-group">
+        <label htmlFor={`${id}-phone`}>Phone</label>
+        <input id={`${id}-phone`} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </div>
+    </fieldset>
   );
 }
 
-export default function Jobs({ auth }) {
-  const [membership, setMembership] = useState(null);
-  const [roster, setRoster] = useState([]);
-  const [jobs, setJobs] = useState([]);
-  const [form, setForm] = useState(emptyForm());
+export default function Jobs() {
+  const team = useTeam();
+  const [form, setForm] = useState(() => emptyForm(team.roster[0]?.user_id ?? ''));
   const [editingId, setEditingId] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
   const [showDone, setShowDone] = useState(false);
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const mem = await orgApi.getMembership();
-      setMembership(mem);
-      if (!mem) {
-        setRoster([]);
-        setJobs([]);
-        return;
-      }
-      const list = await orgApi.listJobs(mem.orgId);
-      setJobs(list);
-      if (mem.isManager) {
-        const people = await orgApi.roster(mem.orgId);
-        setRoster(people);
-        setForm((prev) =>
-          prev.assigned_user_id
-            ? prev
-            : emptyForm(people[0]?.user_id ?? ''),
-        );
-      } else {
-        setRoster([]);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -154,10 +155,10 @@ export default function Jobs({ auth }) {
       job_date: job.job_date ?? isoDate(new Date()),
       job_time: job.job_time ? String(job.job_time).slice(0, 5) : '',
       pickup_name: job.pickup_name ?? '',
-      pickup_address: job.pickup_address ?? '',
+      pickup: addressFromJob(job, 'pickup'),
       pickup_phone: job.pickup_phone ?? '',
       dropoff_name: job.dropoff_name ?? '',
-      dropoff_address: job.dropoff_address ?? '',
+      dropoff: addressFromJob(job, 'dropoff'),
       dropoff_phone: job.dropoff_phone ?? '',
       details: job.details ?? '',
       notes: job.notes ?? '',
@@ -169,33 +170,32 @@ export default function Jobs({ auth }) {
 
   function resetForm() {
     setEditingId(null);
-    setForm(emptyForm(roster[0]?.user_id ?? ''));
+    setForm(emptyForm(team.roster[0]?.user_id ?? ''));
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!membership?.isManager) return;
     const body = payloadFromForm(form);
     if (!body.job_number) {
-      setError('Job number is required.');
+      team.setError('Job number is required.');
       return;
     }
     if (!body.assigned_user_id) {
-      setError('Assign a driver.');
+      team.setError('Assign a driver.');
       return;
     }
     setBusy(true);
-    setError(null);
+    team.setError(null);
     try {
-      if (editingId) {
-        await orgApi.updateJob(editingId, body);
-      } else {
-        await orgApi.createJob(membership.orgId, body);
-      }
+      if (editingId) await orgApi.updateJob(editingId, body);
+      else await orgApi.createJob(team.membership.orgId, body);
       resetForm();
-      await load();
+      await team.reload();
     } catch (err) {
-      setError(err.message);
+      const hint = /pickup_line1|dropoff_line1|schema cache/i.test(err.message)
+        ? ' Run 023_org_job_addresses.sql in the Supabase SQL editor.'
+        : '';
+      team.setError(`${err.message}${hint}`);
     } finally {
       setBusy(false);
     }
@@ -204,308 +204,166 @@ export default function Jobs({ auth }) {
   async function handleDelete(id) {
     if (!confirm('Delete this job?')) return;
     setBusy(true);
-    setError(null);
+    team.setError(null);
     try {
       await orgApi.deleteJob(id);
       if (editingId === id) resetForm();
-      await load();
+      await team.reload();
     } catch (err) {
-      setError(err.message);
+      team.setError(err.message);
     } finally {
       setBusy(false);
     }
   }
 
-  if (auth.isAnonymous) {
-    return (
-      <div className="card">
-        <div className="card-title">Jobs</div>
-        <p className="empty" style={{ padding: '1.5rem 0' }}>
-          Create an account to dispatch jobs to drivers.
-        </p>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return <div className="loading">Loading jobs…</div>;
-  }
-
-  if (!membership) {
-    return (
-      <div className="card">
-        <div className="card-title">Jobs</div>
-        <p className="empty" style={{ padding: '1.5rem 0' }}>
-          Create or join a team first. Jobs are assigned to drivers from this
-          dashboard.
-        </p>
-      </div>
-    );
-  }
-
-  const visible = jobs.filter((j) => (showDone ? true : j.status === 'open'));
-  const rosterById = Object.fromEntries(
-    roster.map((m) => [m.user_id, driverLabel(m)]),
-  );
+  const rosterById = Object.fromEntries(team.roster.map((m) => [m.user_id, driverLabel(m)]));
+  const visible = team.jobs.filter((j) => (showDone ? true : j.status === 'open'));
 
   return (
-    <div className="grid-2">
-      {error && (
-        <div className="error-banner" style={{ gridColumn: '1 / -1' }}>
-          {error}
+    <div className="mgr-page">
+      <div className="page-toolbar">
+        <div>
+          <h1>{editingId ? 'Edit job' : 'Jobs'}</h1>
+          <p className="page-sub">Assigned drivers see the stop on their phone.</p>
         </div>
-      )}
+      </div>
 
-      {membership.isManager && (
-        <div className="card">
-          <div className="card-title">{editingId ? 'Edit job' : 'New job'}</div>
-          <form onSubmit={handleSubmit}>
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="job-number">Job #</label>
-                <input
-                  id="job-number"
-                  value={form.job_number}
-                  onChange={(e) => setField('job_number', e.target.value)}
-                  required
-                  maxLength={40}
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="job-date">Date</label>
-                <input
-                  id="job-date"
-                  type="date"
-                  value={form.job_date}
-                  onChange={(e) => setField('job_date', e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="job-time">Time</label>
-                <input
-                  id="job-time"
-                  type="time"
-                  value={form.job_time}
-                  onChange={(e) => setField('job_time', e.target.value)}
-                />
-              </div>
+      <section className="panel">
+        <form onSubmit={handleSubmit}>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="job-number">Job #</label>
+              <input id="job-number" value={form.job_number} onChange={(e) => setField('job_number', e.target.value)} required maxLength={40} />
             </div>
-
+            <div className="form-group">
+              <label htmlFor="job-date">Date</label>
+              <input id="job-date" type="date" value={form.job_date} onChange={(e) => setField('job_date', e.target.value)} required />
+            </div>
+            <div className="form-group">
+              <label htmlFor="job-time">Time</label>
+              <input id="job-time" type="time" value={form.job_time} onChange={(e) => setField('job_time', e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row address-assign-row">
             <div className="form-group">
               <label htmlFor="job-driver">Assigned driver</label>
-              <select
-                id="job-driver"
-                value={form.assigned_user_id}
-                onChange={(e) => setField('assigned_user_id', e.target.value)}
-                required
-              >
+              <select id="job-driver" value={form.assigned_user_id} onChange={(e) => setField('assigned_user_id', e.target.value)} required>
                 <option value="">Select driver</option>
-                {roster.map((m) => (
-                  <option key={m.user_id} value={m.user_id}>
-                    {driverLabel(m)}
-                  </option>
+                {team.roster.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>{driverLabel(m)}</option>
                 ))}
               </select>
             </div>
-
-            <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <div>
-                <div className="form-group">
-                  <label htmlFor="pickup-name">Pickup bus. name</label>
-                  <input
-                    id="pickup-name"
-                    value={form.pickup_name}
-                    onChange={(e) => setField('pickup_name', e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="pickup-address">Pickup address</label>
-                  <input
-                    id="pickup-address"
-                    value={form.pickup_address}
-                    onChange={(e) => setField('pickup_address', e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="pickup-phone">Pickup phone</label>
-                  <input
-                    id="pickup-phone"
-                    type="tel"
-                    value={form.pickup_phone}
-                    onChange={(e) => setField('pickup_phone', e.target.value)}
-                  />
-                </div>
-              </div>
-              <div>
-                <div className="form-group">
-                  <label htmlFor="dropoff-name">Delivery bus. name</label>
-                  <input
-                    id="dropoff-name"
-                    value={form.dropoff_name}
-                    onChange={(e) => setField('dropoff_name', e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="dropoff-address">Delivery address</label>
-                  <input
-                    id="dropoff-address"
-                    value={form.dropoff_address}
-                    onChange={(e) => setField('dropoff_address', e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="dropoff-phone">Delivery phone</label>
-                  <input
-                    id="dropoff-phone"
-                    type="tel"
-                    value={form.dropoff_phone}
-                    onChange={(e) => setField('dropoff_phone', e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="job-details">Details</label>
-              <textarea
-                id="job-details"
-                rows={3}
-                value={form.details}
-                onChange={(e) => setField('details', e.target.value)}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="job-notes">Notes</label>
-              <textarea
-                id="job-notes"
-                rows={2}
-                value={form.notes}
-                onChange={(e) => setField('notes', e.target.value)}
-              />
-            </div>
-
             {editingId ? (
               <div className="form-group">
                 <label htmlFor="job-status">Status</label>
-                <select
-                  id="job-status"
-                  value={form.status}
-                  onChange={(e) => setField('status', e.target.value)}
-                >
+                <select id="job-status" value={form.status} onChange={(e) => setField('status', e.target.value)}>
                   <option value="open">Open</option>
                   <option value="done">Done</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
             ) : null}
+          </div>
 
-            <div className="header-actions">
-              <button type="submit" className="btn btn-primary" disabled={busy}>
-                {busy ? 'Saving…' : editingId ? 'Save job' : 'Create job'}
-              </button>
-              {editingId ? (
-                <button type="button" className="btn btn-ghost btn-sm" onClick={resetForm}>
-                  Cancel
-                </button>
-              ) : null}
+          <div className="address-grid">
+            <AddressFields
+              id="pickup"
+              title="Pickup"
+              name={form.pickup_name}
+              setName={(v) => setField('pickup_name', v)}
+              phone={form.pickup_phone}
+              setPhone={(v) => setField('pickup_phone', v)}
+              address={form.pickup}
+              setAddress={(v) => setField('pickup', v)}
+            />
+            <AddressFields
+              id="dropoff"
+              title="Delivery"
+              name={form.dropoff_name}
+              setName={(v) => setField('dropoff_name', v)}
+              phone={form.dropoff_phone}
+              setPhone={(v) => setField('dropoff_phone', v)}
+              address={form.dropoff}
+              setAddress={(v) => setField('dropoff', v)}
+            />
+          </div>
+
+          <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <div className="form-group">
+              <label htmlFor="job-details">Details</label>
+              <textarea id="job-details" rows={3} value={form.details} onChange={(e) => setField('details', e.target.value)} />
             </div>
-          </form>
-        </div>
-      )}
+            <div className="form-group">
+              <label htmlFor="job-notes">Notes</label>
+              <textarea id="job-notes" rows={3} value={form.notes} onChange={(e) => setField('notes', e.target.value)} />
+            </div>
+          </div>
 
-      <div className="card" style={{ gridColumn: membership.isManager ? undefined : '1 / -1' }}>
-        <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-          <span>{membership.isManager ? 'Dispatched jobs' : 'Your jobs'}</span>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => setShowDone((v) => !v)}
-          >
+          <div className="header-actions">
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              {busy ? 'Saving…' : editingId ? 'Save job' : 'Create job'}
+            </button>
+            {editingId ? (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={resetForm}>
+                Cancel
+              </button>
+            ) : null}
+          </div>
+        </form>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Dispatched</h2>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowDone((v) => !v)}>
             {showDone ? 'Hide done' : 'Show done'}
           </button>
         </div>
         {visible.length === 0 ? (
-          <p className="empty" style={{ padding: '1rem 0' }}>
-            {membership.isManager
-              ? 'No jobs yet. Create one and assign a driver — it shows on their Track tab.'
-              : 'No jobs assigned to you yet.'}
-          </p>
+          <p className="empty">No jobs yet.</p>
         ) : (
-          <div className="job-list">
-            {visible.map((job) => (
-              <div key={job.id} className="job-list-item">
-                <JobSummaryCard
-                  job={job}
-                  driver={membership.isManager ? rosterById[job.assigned_user_id] : null}
-                  onEdit={
-                    membership.isManager
-                      ? () => startEdit(job)
-                      : undefined
-                  }
-                />
-                <JobFullFields job={job} />
-                {membership.isManager ? (
-                  <button
-                    type="button"
-                    className="btn-danger"
-                    onClick={() => handleDelete(job.id)}
-                    disabled={busy}
-                  >
-                    Delete
-                  </button>
-                ) : null}
-              </div>
-            ))}
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Job</th>
+                  <th>When</th>
+                  <th>Driver</th>
+                  <th>Pickup</th>
+                  <th>Delivery</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((job) => (
+                  <tr key={job.id}>
+                    <td>
+                      <button type="button" className="linkish" onClick={() => startEdit(job)}>
+                        {job.job_number}
+                      </button>
+                    </td>
+                    <td>
+                      {formatShortDate(job.job_date)}
+                      {job.job_time ? <div className="muted-row">{formatTime(job.job_time)}</div> : null}
+                    </td>
+                    <td>{rosterById[job.assigned_user_id] || '—'}</td>
+                    <td className="clip">{job.pickup_address || '—'}</td>
+                    <td className="clip">{job.dropoff_address || '—'}</td>
+                    <td>{job.status}</td>
+                    <td className="num">
+                      <button type="button" className="btn-danger" onClick={() => handleDelete(job.id)} disabled={busy}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, children }) {
-  const text = typeof children === 'string' ? children.trim() : children;
-  if (!text) return null;
-  return (
-    <div className="job-field">
-      <div className="muted">{label}</div>
-      <div>{text}</div>
-    </div>
-  );
-}
-
-function JobFullFields({ job }) {
-  return (
-    <div className="job-full">
-      <Field label="Pickup">{job.pickup_name}</Field>
-      {job.pickup_address ? (
-        <Field label="Pickup address">
-          <a href={mapsHref(job.pickup_address)} target="_blank" rel="noreferrer">
-            {job.pickup_address}
-          </a>
-        </Field>
-      ) : null}
-      {job.pickup_phone ? (
-        <Field label="Pickup phone">
-          <a href={`tel:${job.pickup_phone}`}>{job.pickup_phone}</a>
-        </Field>
-      ) : null}
-      <Field label="Delivery">{job.dropoff_name}</Field>
-      {job.dropoff_address ? (
-        <Field label="Delivery address">
-          <a href={mapsHref(job.dropoff_address)} target="_blank" rel="noreferrer">
-            {job.dropoff_address}
-          </a>
-        </Field>
-      ) : null}
-      {job.dropoff_phone ? (
-        <Field label="Delivery phone">
-          <a href={`tel:${job.dropoff_phone}`}>{job.dropoff_phone}</a>
-        </Field>
-      ) : null}
-      <Field label="Details">{job.details}</Field>
-      <Field label="Notes">{job.notes}</Field>
+      </section>
     </div>
   );
 }

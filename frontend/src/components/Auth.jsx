@@ -118,7 +118,7 @@ export default function Auth({
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-logo">🛣️</div>
+        <img className="auth-logo" src="/icon-192.png" alt="" width="64" height="64" />
         <h1>TrekTrack</h1>
         <p className="auth-subtitle">{subtitle}</p>
 
