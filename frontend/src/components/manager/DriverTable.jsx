@@ -21,7 +21,7 @@ function classLabel(trip) {
   return 'Unclassified';
 }
 
-export default function DriverTable({ drivers, rangeLabel, heading = 'Drivers' }) {
+export default function DriverTable({ drivers, rangeLabel, heading = 'Drivers', hideJobs = false }) {
   const [openId, setOpenId] = useState(null);
   const [query, setQuery] = useState('');
 
@@ -34,7 +34,7 @@ export default function DriverTable({ drivers, rangeLabel, heading = 'Drivers' }
   }, [drivers, query]);
 
   return (
-    <section className="panel">
+    <section className="panel panel-fill">
       <div className="panel-head">
         <div>
           {heading ? <h2>{heading}</h2> : null}
@@ -44,12 +44,12 @@ export default function DriverTable({ drivers, rangeLabel, heading = 'Drivers' }
           className="filter-input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Find a driver"
-          aria-label="Find a driver"
+          placeholder={heading === 'Employees' ? 'Find an employee' : 'Find a driver'}
+          aria-label={heading === 'Employees' ? 'Find an employee' : 'Find a driver'}
         />
       </div>
       {visible.length === 0 ? (
-        <p className="empty">No drivers in this view.</p>
+        <p className="empty">{heading === 'Employees' ? 'No employees in this view.' : 'No drivers in this view.'}</p>
       ) : (
         <div className="table-wrap">
           <table className="data-table">
@@ -57,11 +57,10 @@ export default function DriverTable({ drivers, rangeLabel, heading = 'Drivers' }
               <tr>
                 <th>Driver</th>
                 <th className="num">Business mi</th>
-                <th className="num">Deduction</th>
                 <th className="num">Trips</th>
                 <th className="num">Unclassified</th>
                 <th className="num">Field costs</th>
-                <th className="num">Open jobs</th>
+                {hideJobs ? null : <th className="num">Open jobs</th>}
                 <th>Last trip</th>
               </tr>
             </thead>
@@ -73,6 +72,7 @@ export default function DriverTable({ drivers, rangeLabel, heading = 'Drivers' }
                     key={driver.user_id}
                     driver={driver}
                     open={open}
+                    hideJobs={hideJobs}
                     onToggle={() => setOpenId(open ? null : driver.user_id)}
                   />
                 );
@@ -85,7 +85,7 @@ export default function DriverTable({ drivers, rangeLabel, heading = 'Drivers' }
   );
 }
 
-function DriverBlock({ driver, open, onToggle }) {
+function DriverBlock({ driver, open, onToggle, hideJobs = false }) {
   const unclassifiedTrips = driver.tripRows.filter((t) => t.is_business == null);
   return (
     <>
@@ -95,16 +95,15 @@ function DriverBlock({ driver, open, onToggle }) {
           {driver.nickname ? <div className="muted-row">{driver.email}</div> : null}
         </td>
         <td className="num">{milesFmt.format(driver.businessMiles)}</td>
-        <td className="num">{moneyFmt.format(driver.deduction)}</td>
         <td className="num">{driver.tripCount}</td>
         <td className={`num${driver.unclassified ? ' warn-cell' : ''}`}>{driver.unclassified}</td>
         <td className="num">{moneyFmt.format(driver.field)}</td>
-        <td className="num">{driver.openJobs}</td>
+        {hideJobs ? null : <td className="num">{driver.openJobs}</td>}
         <td>{formatShortDate(driver.last_trip_date)}</td>
       </tr>
       {open ? (
         <tr className="expand-row">
-          <td colSpan={8}>
+          <td colSpan={hideJobs ? 6 : 7}>
             <div className="expand-panel">
               <div className="expand-stats">
                 <Stat label="Personal mi" value={milesFmt.format(driver.personalMiles)} />

@@ -53,6 +53,7 @@ function downloadCsv(name, rows) {
 function roleLabel(role) {
   if (role === 'owner') return 'Owner';
   if (role === 'admin') return 'Admin';
+  if (role === 'dispatcher') return 'Dispatcher';
   return 'Driver';
 }
 
@@ -452,6 +453,7 @@ export default function Team({ auth }) {
                 onChange={(e) => setRole(e.target.value)}
               >
                 <option value="driver">Driver</option>
+                <option value="dispatcher">Dispatcher</option>
                 <option value="admin">Admin</option>
               </select>
             </div>

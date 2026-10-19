@@ -1,85 +1,32 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTeam } from '../context/TeamContext.jsx';
-import { addressFromJob, composeAddress, trim, US_STATES } from '../lib/address.js';
+import { composeAddress, recentJobStops } from '../lib/address.js';
+import { nearestPing, pingOnDay } from '../lib/assignNearest.js';
+import { nextChargeNumber } from '../lib/accountForm.js';
+import { customerFromPickup, lastCustomerId, rememberLastCustomer } from '../lib/accountMatch.js';
+import { drivingEstimate, drivingMinutes, geocodeAddress, jobAddress } from '../lib/geo.js';
+import { applyFormChange, emptyForm, formFromJob, ratesForAccount, withQuote, withSuggestedAccount } from '../lib/jobForm.js';
+import { boardRank, isActiveJob, isDelivered } from '../lib/jobStatus.js';
+import { useDeskChrome } from '../context/DeskNav.jsx';
+import { ICO } from './manager/icons.jsx';
+import { Avatar } from './manager/DeskWidgets.jsx';
+import DispatchMap from './manager/DispatchMap.jsx';
+import { formatJobTime, stopLine } from './manager/JobDayList.jsx';
 import { isoDate } from '../lib/period.js';
+import { BOARD_DATE_KEY } from '../lib/planMonth.js';
+import { dayExceptions, dayPulse, jobMatchesQuery } from '../lib/jobSearch.js';
+import { nearestOrder } from '../lib/routeOrder.js';
+import { deleteJobById, duplicateJobForm, jobSaveHint, saveJobForm } from '../lib/jobSave.js';
 import { orgApi } from '../orgApi.js';
-import { formatShortDate } from './manager/format.js';
+import { driverHeadline, isDriverActive, milesFmt, moneyFmt, presenceLabel } from './manager/format.js';
+import Module from './manager/Module.jsx';
+import { useDeskNav } from '../context/DeskNav.jsx';
+import JobDayList from './manager/JobDayList.jsx';
+import { isCourierMode, isServiceJobStyle } from '../lib/company.js';
+import { deskSkin } from '../lib/layout.js';
+import JobForm from './manager/JobForm.jsx';
 
-function emptyAddress() {
-  return { line1: '', line2: '', city: '', state: '', zip: '' };
-}
-
-function emptyForm({ assignedUserId = '', jobDate = isoDate(new Date()) } = {}) {
-  return {
-    job_number: '',
-    job_date: jobDate,
-    job_time: '',
-    pickup_name: '',
-    pickup: emptyAddress(),
-    pickup_phone: '',
-    dropoff_name: '',
-    dropoff: emptyAddress(),
-    dropoff_phone: '',
-    details: '',
-    notes: '',
-    assigned_user_id: assignedUserId,
-    status: 'open',
-  };
-}
-
-function payloadFromForm(form) {
-  const pickup = {
-    line1: trim(form.pickup.line1),
-    line2: trim(form.pickup.line2),
-    city: trim(form.pickup.city),
-    state: trim(form.pickup.state).toUpperCase(),
-    zip: trim(form.pickup.zip),
-  };
-  const dropoff = {
-    line1: trim(form.dropoff.line1),
-    line2: trim(form.dropoff.line2),
-    city: trim(form.dropoff.city),
-    state: trim(form.dropoff.state).toUpperCase(),
-    zip: trim(form.dropoff.zip),
-  };
-  return {
-    job_number: trim(form.job_number),
-    job_date: form.job_date,
-    job_time: trim(form.job_time) || null,
-    pickup_name: trim(form.pickup_name),
-    pickup_line1: pickup.line1,
-    pickup_line2: pickup.line2,
-    pickup_city: pickup.city,
-    pickup_state: pickup.state,
-    pickup_zip: pickup.zip,
-    pickup_address: composeAddress(pickup),
-    pickup_phone: trim(form.pickup_phone),
-    dropoff_name: trim(form.dropoff_name),
-    dropoff_line1: dropoff.line1,
-    dropoff_line2: dropoff.line2,
-    dropoff_city: dropoff.city,
-    dropoff_state: dropoff.state,
-    dropoff_zip: dropoff.zip,
-    dropoff_address: composeAddress(dropoff),
-    dropoff_phone: trim(form.dropoff_phone),
-    details: trim(form.details),
-    notes: trim(form.notes),
-    assigned_user_id: form.assigned_user_id,
-    status: form.status || 'open',
-  };
-}
-
-function formatTime(t) {
-  if (!t) return '';
-  const parts = String(t).split(':');
-  const h = Number(parts[0]);
-  const m = Number(parts[1] ?? 0);
-  if (!Number.isFinite(h)) return String(t);
-  return new Date(2020, 0, 1, h, m).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
+const UNASSIGNED = '__unassigned__';
 
 function shiftDay(iso, n) {
   const d = new Date(`${iso}T12:00:00`);
@@ -87,178 +34,339 @@ function shiftDay(iso, n) {
   return isoDate(d);
 }
 
-function driverLabel(member) {
-  return member.nickname || member.email || member.user_id;
+function prettyDay(iso) {
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function stopLine(job, prefix) {
-  const city = trim(job[`${prefix}_city`]);
-  const name = trim(job[`${prefix}_name`]);
-  const line1 = trim(job[`${prefix}_line1`]);
-  const address = trim(job[`${prefix}_address`]);
-  if (name && city) return `${name} · ${city}`;
-  return name || city || line1 || address || '';
+function isLateJob(job, boardDate, today) {
+  if (job.status === 'failed') return true;
+  if (isDelivered(job.status) || job.status === 'picked_up' || job.status === 'cancelled') return false;
+  if (boardDate < today) return true;
+  if (boardDate > today) return false;
+  const t = job.pickup_time || job.job_time;
+  if (!t) return false;
+  const [h, m] = String(t).split(':').map(Number);
+  if (!Number.isFinite(h)) return false;
+  const at = new Date();
+  at.setHours(h, Number.isFinite(m) ? m : 0, 0, 0);
+  return Date.now() > at.getTime();
 }
 
-function AddressFields({ id, title, name, setName, phone, setPhone, address, setAddress }) {
-  function set(key, value) {
-    setAddress({ ...address, [key]: value });
+function boardChip(job, boardDate, today) {
+  if (isDelivered(job.status)) return { id: 'on', label: 'Done' };
+  if (job.status === 'picked_up') return { id: 'pri', label: 'En route' };
+  if (isLateJob(job, boardDate, today)) return { id: 'alert', label: 'Late' };
+  return { id: 'off', label: 'Scheduled' };
+}
+
+function readBoardDate(fallback) {
+  try {
+    const saved = sessionStorage.getItem(BOARD_DATE_KEY);
+    if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) {
+      sessionStorage.removeItem(BOARD_DATE_KEY);
+      return saved;
+    }
+  } catch {
+    /* private mode */
   }
-  return (
-    <fieldset className="address-block">
-      <legend>{title}</legend>
-      <div className="form-group">
-        <label htmlFor={`${id}-name`}>Business name</label>
-        <input id={`${id}-name`} value={name} onChange={(e) => setName(e.target.value)} />
-      </div>
-      <div className="form-group">
-        <label htmlFor={`${id}-line1`}>Address line 1</label>
-        <input id={`${id}-line1`} value={address.line1} onChange={(e) => set('line1', e.target.value)} autoComplete="address-line1" />
-      </div>
-      <div className="form-group">
-        <label htmlFor={`${id}-line2`}>Address line 2</label>
-        <input
-          id={`${id}-line2`}
-          value={address.line2}
-          onChange={(e) => set('line2', e.target.value)}
-          placeholder="Apt, unit"
-          autoComplete="address-line2"
-        />
-      </div>
-      <div className="form-row address-city-row">
-        <div className="form-group">
-          <label htmlFor={`${id}-city`}>City</label>
-          <input id={`${id}-city`} value={address.city} onChange={(e) => set('city', e.target.value)} autoComplete="address-level2" />
-        </div>
-        <div className="form-group">
-          <label htmlFor={`${id}-state`}>State</label>
-          <select id={`${id}-state`} value={address.state} onChange={(e) => set('state', e.target.value)}>
-            <option value="">—</option>
-            {US_STATES.map((st) => (
-              <option key={st} value={st}>{st}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-group">
-          <label htmlFor={`${id}-zip`}>ZIP</label>
-          <input id={`${id}-zip`} value={address.zip} onChange={(e) => set('zip', e.target.value)} inputMode="numeric" autoComplete="postal-code" />
-        </div>
-      </div>
-      <div className="form-group">
-        <label htmlFor={`${id}-phone`}>Phone</label>
-        <input id={`${id}-phone`} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-      </div>
-    </fieldset>
-  );
+  return fallback;
 }
 
 export default function Jobs() {
   const team = useTeam();
-  const isService = team.membership?.jobStyle !== 'delivery';
   const today = isoDate(new Date());
-  const [boardDate, setBoardDate] = useState(today);
-  const [form, setForm] = useState(null);
+  const [boardDate, setBoardDate] = useState(() => readBoardDate(today));
+  const [form, setForm] = useState(() => emptyForm({ jobDate: today }));
   const [editingId, setEditingId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [hideDone, setHideDone] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState('');
+  const [estimating, setEstimating] = useState(false);
+  const [ordering, setOrdering] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [etas, setEtas] = useState({});
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [query, setQuery] = useState('');
+  const [pulseFilter, setPulseFilter] = useState('');
+  const [statusChip, setStatusChip] = useState('all');
+  const [view, setView] = useState('board');
+  const [formOpen, setFormOpen] = useState(false);
+  const [showRoutes, setShowRoutes] = useState(true);
+  const deskNav = useDeskNav();
 
-  const columns = useMemo(() => {
-    const members = [...team.roster].sort((a, b) =>
-      driverLabel(a).localeCompare(driverLabel(b)),
-    );
-    const known = new Set(members.map((m) => m.user_id));
-    const extras = [];
+  const driverList = useMemo(() => {
+    const known = new Map(team.drivers.map((d) => [d.user_id, d]));
     for (const job of team.jobs) {
       if (job.job_date !== boardDate) continue;
       if (job.assigned_user_id && !known.has(job.assigned_user_id)) {
-        known.add(job.assigned_user_id);
-        extras.push({
+        known.set(job.assigned_user_id, {
           user_id: job.assigned_user_id,
-          nickname: '',
-          email: 'Driver',
+          label: 'Driver',
+          phone: '',
+          vehicle: '',
+          vehicleColor: '',
         });
       }
     }
-    return [...members, ...extras];
-  }, [team.roster, team.jobs, boardDate]);
+    return [...known.values()];
+  }, [team.drivers, team.jobs, boardDate]);
 
-  const jobsByDriver = useMemo(() => {
-    const map = new Map();
-    for (const col of columns) map.set(col.user_id, []);
-    for (const job of team.jobs) {
-      if (job.job_date !== boardDate) continue;
-      if (hideDone && job.status !== 'open') continue;
-      const list = map.get(job.assigned_user_id);
-      if (list) list.push(job);
-    }
-    for (const list of map.values()) {
-      list.sort((a, b) => String(a.job_time || '99').localeCompare(String(b.job_time || '99')));
-    }
-    return map;
-  }, [columns, team.jobs, boardDate, hideDone]);
-
-  const dayCount = useMemo(
-    () => team.jobs.filter((j) => j.job_date === boardDate && (!hideDone || j.status === 'open')).length,
-    [team.jobs, boardDate, hideDone],
+  const pulse = useMemo(() => dayPulse(team.jobs, boardDate), [team.jobs, boardDate]);
+  const exceptions = useMemo(
+    () => dayExceptions(team.jobs, boardDate, team.membership?.operatingMode),
+    [team.jobs, boardDate, team.membership?.operatingMode],
   );
 
-  function setField(key, value) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const dayJobs = useMemo(() => {
+    const list = [];
+    for (const job of team.jobs) {
+      if (job.job_date !== boardDate) continue;
+      if (hideDone && !isActiveJob(job.status)) continue;
+      if (view !== 'board') {
+        if (selectedDriver === UNASSIGNED) {
+          if (job.assigned_user_id) continue;
+        } else if (selectedDriver && job.assigned_user_id !== selectedDriver) continue;
+      }
+      if (pulseFilter === 'open' && job.status !== 'open') continue;
+      if (pulseFilter === 'picked_up' && job.status !== 'picked_up') continue;
+      if (pulseFilter === 'delivered' && !isDelivered(job.status)) continue;
+      if (pulseFilter === 'failed' && job.status !== 'failed') continue;
+      if (pulseFilter === 'unassigned' && job.assigned_user_id) continue;
+      if (statusChip === 'open' && job.status !== 'open') continue;
+      if (statusChip === 'picked_up' && job.status !== 'picked_up') continue;
+      if (statusChip === 'delivered' && !isDelivered(job.status)) continue;
+      if (statusChip === 'failed' && job.status !== 'failed' && !isLateJob(job, boardDate, today)) continue;
+      if (!jobMatchesQuery(job, query, { customers: team.customers, drivers: team.drivers })) continue;
+      list.push(job);
+    }
+    list.sort((a, b) => {
+      const rank = boardRank(a.status) - boardRank(b.status);
+      if (rank) return rank;
+      const unassigned = Number(Boolean(a.assigned_user_id)) - Number(Boolean(b.assigned_user_id));
+      if (unassigned) return unassigned;
+      const orderA = Number(a.stop_order);
+      const orderB = Number(b.stop_order);
+      if (Number.isFinite(orderA) && Number.isFinite(orderB) && orderA !== orderB) return orderA - orderB;
+      return String(a.pickup_time || a.job_time || '99').localeCompare(String(b.pickup_time || b.job_time || '99'));
+    });
+    return list;
+  }, [team.jobs, boardDate, hideDone, selectedDriver, pulseFilter, statusChip, query, team.customers, team.drivers, today, view]);
+
+  const recents = useMemo(() => recentJobStops(team.jobs), [team.jobs]);
+
+  const pingMarkers = useMemo(
+    () =>
+      (team.pings || []).map((p) => ({
+        ...p,
+        label: team.drivers.find((d) => d.user_id === p.user_id)?.label || 'Driver',
+      })),
+    [team.pings, team.drivers],
+  );
+
+  useEffect(() => {
+    let live = true;
+    async function loadEtas() {
+      const next = {};
+      for (const job of dayJobs) {
+        if (job.status !== 'picked_up') continue;
+        try {
+          const dropQuery = jobAddress(job, 'dropoff') || job.dropoff_address;
+          const drop = dropQuery ? await geocodeAddress(dropQuery) : null;
+          if (!live) return;
+          const ping = pingMarkers.find((row) => row.user_id === job.assigned_user_id && pingOnDay(row, boardDate));
+          let origin = ping && Number.isFinite(Number(ping.lat)) && Number.isFinite(Number(ping.lng))
+            ? { lat: Number(ping.lat), lng: Number(ping.lng) }
+            : null;
+          if (!origin) {
+            const pickupQuery = jobAddress(job, 'pickup') || job.pickup_address;
+            origin = pickupQuery ? await geocodeAddress(pickupQuery) : null;
+          }
+          if (!live) return;
+          if (!origin || !drop) continue;
+          const minutes = await drivingMinutes(origin, drop);
+          if (minutes != null) next[job.id] = minutes;
+        } catch {
+          /* keep card without an ETA */
+        }
+      }
+      if (live) setEtas(next);
+    }
+    loadEtas();
+    return () => {
+      live = false;
+    };
+  }, [dayJobs, pingMarkers, boardDate]);
+
+  function todayOpenCount(userId) {
+    return team.jobs.filter((j) => {
+      if (j.job_date !== boardDate || !isActiveJob(j.status)) return false;
+      if (userId === UNASSIGNED) return !j.assigned_user_id;
+      return j.assigned_user_id === userId;
+    }).length;
   }
 
-  function openCreate(assignedUserId) {
-    setEditingId(null);
-    setForm(emptyForm({ assignedUserId, jobDate: boardDate }));
+  const takePctDisplay = Math.round((team.quoteRates?.companyTakePct ?? 0.3) * 100);
+
+  function blankForm() {
+    const customerId = lastCustomerId(team.membership?.orgId, team.customers);
+    const next = emptyForm({
+      jobDate: boardDate,
+      assignedUserId: selectedDriver === UNASSIGNED ? '' : selectedDriver,
+      takePct: takePctDisplay,
+      customerId,
+      weightUnit: team.weightUnit,
+      jobPrefix: team.membership?.jobPrefix,
+    });
+    if (!customerId) return next;
+    const customer = (team.customers || []).find((row) => row.id === customerId);
+    next.charge_number = customer?.charge_number || '';
+    return withQuote(next, ratesForAccount(team.quoteRates, customer));
+  }
+
+  function ratesFor(form) {
+    const customer = (team.customers || []).find((row) => row.id === form.customer_id);
+    return ratesForAccount(team.quoteRates, customer);
+  }
+
+  function setField(key, value) {
+    setForm((prev) => {
+      const nextForm = key === 'customer_id' ? { ...prev, customer_id: value } : prev;
+      const rates = ratesFor(nextForm);
+      const base = key === 'customer_id' && !prev.quote_manual
+        ? { ...prev, company_take_pct: String(Math.round((rates.companyTakePct ?? 0.3) * 100)) }
+        : prev;
+      const changed = applyFormChange(base, key, value, rates, team.customers);
+      if (key === 'pickup_name' || key === 'pickup_email') {
+        return withSuggestedAccount(changed, team.customers, team.quoteRates);
+      }
+      return changed;
+    });
+  }
+
+  useEffect(() => {
+    if (editingId) return;
+    setForm((prev) => {
+      if (prev.accountDirty || prev.customer_id) return prev;
+      const last = lastCustomerId(team.membership?.orgId, team.customers);
+      if (!last) return prev;
+      const customer = (team.customers || []).find((row) => row.id === last);
+      return withQuote({
+        ...prev,
+        customer_id: last,
+        charge_number: customer?.charge_number || '',
+      }, ratesForAccount(team.quoteRates, customer));
+    });
+  }, [team.customers, team.membership?.orgId, editingId, team.quoteRates]);
+
+  function toggleWeekday(id) {
+    setForm((prev) => {
+      const on = prev.weekdays.includes(id);
+      return { ...prev, weekdays: on ? prev.weekdays.filter((d) => d !== id) : [...prev.weekdays, id] };
+    });
+  }
+
+  function pickDriver(userId) {
+    const next = selectedDriver === userId ? '' : userId;
+    setSelectedDriver(next);
+    if (!editingId) {
+      setForm((prev) => ({
+        ...prev,
+        assigned_user_id: next === UNASSIGNED ? '' : next,
+        job_date: boardDate,
+      }));
+    }
   }
 
   function startEdit(job) {
     setEditingId(job.id);
-    setForm({
-      job_number: job.job_number ?? '',
-      job_date: job.job_date ?? boardDate,
-      job_time: job.job_time ? String(job.job_time).slice(0, 5) : '',
-      pickup_name: job.pickup_name ?? '',
-      pickup: addressFromJob(job, 'pickup'),
-      pickup_phone: job.pickup_phone ?? '',
-      dropoff_name: job.dropoff_name ?? '',
-      dropoff: addressFromJob(job, 'dropoff'),
-      dropoff_phone: job.dropoff_phone ?? '',
-      details: job.details ?? '',
-      notes: job.notes ?? '',
-      assigned_user_id: job.assigned_user_id ?? '',
-      status: job.status ?? 'open',
-    });
+    setForm(formFromJob(job, { takePct: takePctDisplay, jobDate: boardDate, customers: team.customers }));
+    setFormOpen(true);
   }
 
-  function closeDrawer() {
+  function closeForm() {
     setEditingId(null);
-    setForm(null);
+    setForm(blankForm());
+    setFormOpen(false);
+  }
+
+  function openNew(assigned = '') {
+    setEditingId(null);
+    setForm({ ...blankForm(), assigned_user_id: assigned === UNASSIGNED ? '' : assigned, job_date: boardDate });
+    setFormOpen(true);
+  }
+
+  async function handleEstimate() {
+    const pickup = composeAddress(form.pickup);
+    const dropoff = composeAddress(form.dropoff);
+    if (!pickup || !dropoff) {
+      team.setError('Fill pickup and delivery addresses first.');
+      return;
+    }
+    setEstimating(true);
+    team.setError(null);
+    try {
+      const { miles } = await drivingEstimate(pickup, dropoff);
+      setForm((prev) => withQuote({
+        ...prev,
+        estimated_miles: miles.toFixed(1),
+        milesDirty: true,
+      }, ratesFor(form)));
+    } catch (err) {
+      team.setError(err.message);
+    } finally {
+      setEstimating(false);
+    }
+  }
+
+  async function handleMarkDelivered(job) {
+    team.setError(null);
+    try {
+      await orgApi.updateJob(job.id, { status: 'delivered' });
+      if (editingId === job.id) closeForm();
+      await team.reload();
+    } catch (err) {
+      team.setError(err.message);
+    }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const body = payloadFromForm(form);
-    if (!body.job_number) {
-      team.setError('Job number is required.');
-      return;
-    }
-    if (!body.assigned_user_id) {
-      team.setError('Assign a driver.');
-      return;
-    }
     setBusy(true);
     team.setError(null);
     try {
-      if (editingId) await orgApi.updateJob(editingId, body);
-      else await orgApi.createJob(team.membership.orgId, body);
-      if (body.job_date) setBoardDate(body.job_date);
-      closeDrawer();
+      const result = await saveJobForm({
+        form,
+        editingId,
+        orgId: team.membership.orgId,
+        jobs: team.jobs,
+        ratesFor,
+      });
+      if (result.boardDate) setBoardDate(result.boardDate);
+      closeForm();
       await team.reload();
     } catch (err) {
-      const hint = /pickup_line1|dropoff_line1|schema cache/i.test(err.message)
-        ? ' Run 023_org_job_addresses.sql in the Supabase SQL editor.'
-        : '';
-      team.setError(`${err.message}${hint}`);
+      team.setError(`${err.message}${jobSaveHint(err.message)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDuplicate() {
+    if (!editingId) return;
+    setBusy(true);
+    team.setError(null);
+    try {
+      await duplicateJobForm({
+        form,
+        orgId: team.membership.orgId,
+        jobDate: boardDate,
+      });
+      closeForm();
+      await team.reload();
+    } catch (err) {
+      team.setError(err.message);
     } finally {
       setBusy(false);
     }
@@ -270,8 +378,8 @@ export default function Jobs() {
     setBusy(true);
     team.setError(null);
     try {
-      await orgApi.deleteJob(editingId);
-      closeDrawer();
+      await deleteJobById(editingId);
+      closeForm();
       await team.reload();
     } catch (err) {
       team.setError(err.message);
@@ -280,186 +388,405 @@ export default function Jobs() {
     }
   }
 
-  const dayLabel = boardDate === today ? 'Today' : formatShortDate(boardDate);
+  async function handleSuggest() {
+    const pool = team.jobs.filter((job) => {
+      if (job.job_date !== boardDate || !isActiveJob(job.status)) return false;
+      if (selectedDriver === UNASSIGNED) return !job.assigned_user_id;
+      if (selectedDriver && job.assigned_user_id !== selectedDriver) return false;
+      return true;
+    });
+    const groups = new Map();
+    for (const job of pool) {
+      const key = job.assigned_user_id || '';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(job);
+    }
+    setOrdering(true);
+    team.setError(null);
+    try {
+      let changed = false;
+      for (const jobs of groups.values()) {
+        if (jobs.length < 2) continue;
+        const stops = [];
+        for (const job of jobs) {
+          const address = job.pickup_address
+            || [job.pickup_line1, job.pickup_city, job.pickup_state, job.pickup_zip].filter(Boolean).join(', ');
+          const point = address ? await geocodeAddress(address) : null;
+          stops.push({
+            id: job.id,
+            lat: point?.lat,
+            lng: point?.lng,
+            time: job.pickup_time || job.job_time || '',
+          });
+        }
+        const ids = nearestOrder(stops);
+        for (let i = 0; i < ids.length; i += 1) {
+          await orgApi.updateJob(ids[i], { stop_order: i + 1 });
+        }
+        changed = true;
+      }
+      if (changed) await team.reload();
+      else team.setError('Need at least two active jobs for one driver on this day.');
+    } catch (err) {
+      team.setError(err.message);
+    } finally {
+      setOrdering(false);
+    }
+  }
+
+  async function handleAssign() {
+    const openJobs = team.jobs.filter((job) => job.job_date === boardDate && job.status === 'open');
+    if (!openJobs.length) {
+      team.setError('No open jobs on this day.');
+      return;
+    }
+    const pings = (team.pings || []).filter((ping) => pingOnDay(ping, boardDate));
+    if (!pings.length) {
+      team.setError('No driver has a location ping on this day.');
+      return;
+    }
+    const countLabel = `${openJobs.length} open job${openJobs.length === 1 ? '' : 's'}`;
+    if (!confirm(`Move ${countLabel} to the nearest driver with a location ping today? Drivers without a ping are not chosen. You can change any driver after.`)) {
+      return;
+    }
+    setAssigning(true);
+    team.setError(null);
+    try {
+      let moved = 0;
+      let skipped = 0;
+      for (const job of openJobs) {
+        const address = job.pickup_address
+          || [job.pickup_line1, job.pickup_city, job.pickup_state, job.pickup_zip].filter(Boolean).join(', ');
+        const point = address ? await geocodeAddress(address) : null;
+        if (!point) {
+          skipped += 1;
+          continue;
+        }
+        const ping = nearestPing(point, pings);
+        if (!ping || ping.user_id === job.assigned_user_id) continue;
+        await orgApi.updateJob(job.id, { assigned_user_id: ping.user_id });
+        moved += 1;
+      }
+      if (moved) await team.reload();
+      if (!moved && skipped) {
+        team.setError(`${skipped} open job${skipped === 1 ? '' : 's'} had no map point, so nothing was reassigned.`);
+      } else if (!moved) {
+        team.setError('Those open jobs are already on the nearest driver.');
+      } else if (skipped) {
+        team.setError(`${skipped} open job${skipped === 1 ? '' : 's'} had no map point and stayed put.`);
+      }
+    } catch (err) {
+      team.setError(err.message);
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  function driverName(userId) {
+    if (!userId) return 'Unassigned';
+    return driverList.find((d) => d.user_id === userId)?.label || 'Driver';
+  }
+
+  async function handleSaveAccount() {
+    const fields = customerFromPickup(form, { terms: team.membership?.defaultTerms });
+    if (!fields.charge_number) fields.charge_number = nextChargeNumber(team.customers);
+    if (!fields.name || !team.membership?.orgId) return;
+    setSavingAccount(true);
+    team.setError(null);
+    try {
+      const row = await orgApi.saveCustomer(team.membership.orgId, fields);
+      rememberLastCustomer(team.membership.orgId, row.id);
+      setField('customer_id', row.id);
+      await team.reload();
+    } catch (err) {
+      team.setError(err.message);
+    } finally {
+      setSavingAccount(false);
+    }
+  }
+
+  const skin = deskSkin(team.membership?.operatingMode);
+  const pulseValue = (id) => {
+    if (id === 'unassigned') return pulse.unassigned;
+    return pulse[id] ?? 0;
+  };
+  const PULSE = skin.pulse.map(([id, label]) => [id, label, pulseValue(id)]);
+  const org = team.membership?.name || 'TrekTrack';
+  const serviceStyle = isServiceJobStyle(team.membership?.operatingMode);
+  const allDay = team.jobs.filter((j) => j.job_date === boardDate);
+  const doneCount = allDay.filter((j) => isDelivered(j.status)).length;
+  const estMiles = allDay.reduce((s, j) => s + Number(j.estimated_miles || 0), 0);
+  const chipCounts = {
+    all: allDay.length,
+    open: allDay.filter((j) => j.status === 'open').length,
+    picked_up: allDay.filter((j) => j.status === 'picked_up').length,
+    failed: allDay.filter((j) => j.status === 'failed' || isLateJob(j, boardDate, today)).length,
+    delivered: allDay.filter((j) => isDelivered(j.status)).length,
+  };
+
+  useDeskChrome(() => ({
+    header: {
+      title: skin.boardNoun,
+      crumb: `${org} › ${skin.boardNoun}`,
+      sub: (
+        <>
+          {boardDate === today ? 'Today' : prettyDay(boardDate)}
+          <span className="sep">·</span>
+          <span className="num">{allDay.length} {allDay.length === 1 ? skin.jobWord.toLowerCase() : skin.boardNoun.toLowerCase()}</span>
+          <span className="sep">·</span>
+          {serviceStyle ? 'One site' : 'Pickup and delivery'}
+        </>
+      ),
+      right: (
+        <>
+          <span className="pill well"><b className="num">{doneCount}/{allDay.length}</b> done</span>
+          <span className="pill well"><b className="num">{milesFmt.format(estMiles)}</b> mi est.</span>
+        </>
+      ),
+    },
+    rail: (
+      <section className="mgr-controls metal" aria-label="Day and actions">
+        <div className="range">
+          <button type="button" className="step fill-steel" onClick={() => setBoardDate((d) => shiftDay(d, -1))} aria-label="Previous day">{ICO.prev}</button>
+          <div className="lbl num">
+            {prettyDay(boardDate)}
+            <small>{boardDate === today ? 'Today' : 'Scheduled'} · {allDay.length} {skin.boardNoun.toLowerCase()}</small>
+          </div>
+          <button type="button" className="step fill-steel" onClick={() => setBoardDate((d) => shiftDay(d, 1))} aria-label="Next day">{ICO.next}</button>
+        </div>
+        <div className="toggle-row">
+          Hide done jobs
+          <button type="button" className={`mgr-switch well${hideDone ? ' on' : ''}`} aria-pressed={hideDone} onClick={() => setHideDone((v) => !v)} />
+        </div>
+        <div className="toggle-row">
+          Show route lines
+          <button type="button" className={`mgr-switch well${showRoutes ? ' on' : ''}`} aria-pressed={showRoutes} onClick={() => setShowRoutes((v) => !v)} />
+        </div>
+        <div className="btn-row">
+          {skin.showAssignTools ? (
+            <button type="button" className="btn fill-steel" onClick={handleAssign} disabled={ordering || assigning}>
+              {ICO.bolt}{assigning ? 'Assigning…' : 'Assign'}
+            </button>
+          ) : <span />}
+          <button type="button" className="btn fill-blue" onClick={() => openNew('')}>
+            {ICO.plus}New {skin.jobWord.toLowerCase()}
+          </button>
+        </div>
+      </section>
+    ),
+    mini: (
+      <section className="mgr-controls c-mini metal">
+        <button type="button" className="icon-btn fill-blue" title="Today" onClick={() => setBoardDate(today)}>T</button>
+        {skin.showAssignTools ? (
+          <button type="button" className="icon-btn fill-steel" title="Assign nearest" onClick={handleAssign}>{ICO.bolt}</button>
+        ) : null}
+        <button type="button" className="icon-btn fill-blue" title="New job" onClick={() => openNew('')}>{ICO.plus}</button>
+      </section>
+    ),
+  }), [org, skin.boardNoun, skin.jobWord, skin.showAssignTools, boardDate, today, allDay.length, doneCount, estMiles, hideDone, showRoutes, assigning, ordering]);
+
+  const formEl = (
+    <JobForm
+      form={form}
+      setField={setField}
+      patchForm={setForm}
+      toggleWeekday={toggleWeekday}
+      editingId={editingId}
+      drivers={team.drivers}
+      customers={team.customers}
+      recents={recents}
+      busy={busy}
+      estimating={estimating}
+      savingAccount={savingAccount}
+      onSubmit={handleSubmit}
+      onEstimate={handleEstimate}
+      onDuplicate={handleDuplicate}
+      onDelete={handleDelete}
+      onSaveAccount={handleSaveAccount}
+      onClose={closeForm}
+      ratesFor={ratesFor}
+      trackingToken={team.jobs.find((job) => job.id === editingId)?.tracking_token}
+      weightUnit={team.weightUnit}
+      officeClosesJobs={team.membership?.officeClosesJobs}
+      useCod={team.membership?.useCod}
+      serviceStyle={serviceStyle}
+      courierQuotes={isCourierMode(team.membership?.operatingMode)}
+      operatingMode={team.membership?.operatingMode}
+      workerLabel={skin.worker}
+      siteTitle={skin.siteTitle}
+      jobWord={skin.jobWord}
+    />
+  );
 
   return (
-    <div className="mgr-page board-page">
-      <div className="page-toolbar">
-        <div>
-          <h1>Jobs</h1>
-          <p className="page-sub">
-            {dayLabel} · {dayCount} {dayCount === 1 ? 'job' : 'jobs'} ·{' '}
-            {isService ? 'One site per job' : 'Pickup and delivery'}.
-          </p>
+    <div className="desk-page is-board">
+      <div className="toolbar">
+        <div className="seg well" style={{ gridTemplateColumns: 'repeat(3, auto)' }}>
+          {[
+            ['board', ICO.board, 'Board'],
+            ['list', ICO.list, 'List'],
+            ['map', ICO.map, 'Map'],
+          ].map(([id, icon, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={view === id ? 'fill-blue' : ''}
+              aria-pressed={view === id}
+              style={{ padding: '5px 12px', display: 'flex', gap: 6, alignItems: 'center' }}
+              onClick={() => setView(id)}
+            >
+              {icon}{label}
+            </button>
+          ))}
         </div>
-        <div className="toolbar-actions">
-          <div className="day-nav">
-            <button type="button" className="btn-ghost btn-sm" onClick={() => setBoardDate((d) => shiftDay(d, -1))} aria-label="Previous day">
-              ‹
+        <div className="chips">
+          {[
+            ['all', 'All'],
+            ['open', 'Scheduled'],
+            ['picked_up', 'En route'],
+            ['failed', 'Late'],
+            ['delivered', 'Done'],
+          ].map(([id, label]) => (
+            <button key={id} type="button" className="fchip" aria-pressed={statusChip === id} onClick={() => setStatusChip(id)}>
+              {label} <span className="n">{chipCounts[id]}</span>
             </button>
-            <input
-              type="date"
-              value={boardDate}
-              onChange={(e) => setBoardDate(e.target.value)}
-              aria-label="Board date"
-            />
-            <button type="button" className="btn-ghost btn-sm" onClick={() => setBoardDate((d) => shiftDay(d, 1))} aria-label="Next day">
-              ›
-            </button>
-            {boardDate !== today ? (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setBoardDate(today)}>
-                Today
-              </button>
-            ) : null}
-          </div>
-          <label className="hide-done">
-            <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
-            Hide done
-          </label>
+          ))}
+        </div>
+        <div className="search well" style={{ marginLeft: 'auto', width: 240 }}>
+          {ICO.search}
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={skin.findPlaceholder}
+            aria-label={`Find ${skin.boardNoun.toLowerCase()}`}
+            style={{ flex: 1, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', outline: 'none', minWidth: 0 }}
+          />
         </div>
       </div>
 
-      {columns.length === 0 ? (
-        <p className="empty">Invite drivers on People, then add jobs to their column.</p>
-      ) : (
+      {exceptions.length ? (
+        <div className="card metal" style={{ marginBottom: 14, padding: '10px 16px' }}>
+          {exceptions.map((row) => (
+            <button key={`${row.kind}-${row.job.id}`} type="button" className="btn btn-xs fill-steel" style={{ marginRight: 8 }} onClick={() => startEdit(row.job)}>
+              {row.job.job_number || 'Job'} · {row.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {view === 'board' ? (
         <div className="board">
-          {columns.map((member) => {
-            const jobs = jobsByDriver.get(member.user_id) ?? [];
+          {[{ user_id: '', label: 'Unassigned', lastSeenAt: null }, ...driverList].map((d) => {
+            const uid = d.user_id;
+            const colJobs = dayJobs.filter((j) => (uid ? j.assigned_user_id === uid : !j.assigned_user_id));
+            const done = colJobs.filter((j) => isDelivered(j.status)).length;
+            const pct = colJobs.length ? Math.round((done / colJobs.length) * 100) : 0;
             return (
-              <section key={member.user_id} className="board-col">
-                <header className="board-col-head">
+              <section className="col well" key={uid || 'unassigned'}>
+                <div className="col-h">
+                  {uid ? <Avatar name={d.label} status={isDriverActive(d.lastSeenAt) ? 'on' : 'off'} seed={uid} /> : <span className="avatar" style={{ background: 'var(--surface-2)' }}>—</span>}
                   <div>
-                    <div className="board-col-name">{driverLabel(member)}</div>
-                    <div className="muted-row">{jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}</div>
+                    <b>{d.label}</b>
+                    <span>{colJobs.length} jobs · {done} done</span>
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => openCreate(member.user_id)}
-                  >
-                    Add
-                  </button>
-                </header>
-                <div className="board-col-body">
-                  {jobs.length === 0 ? (
-                    <p className="board-empty">No jobs</p>
-                  ) : (
-                    jobs.map((job) => (
-                      <button
-                        key={job.id}
-                        type="button"
-                        className={`job-tile status-${job.status}`}
-                        onClick={() => startEdit(job)}
-                      >
-                        <div className="job-tile-top">
-                          <strong>{job.job_number}</strong>
-                          <span>{formatTime(job.job_time) || '—'}</span>
-                        </div>
-                        {stopLine(job, 'pickup') ? <div className="job-tile-stop">{stopLine(job, 'pickup')}</div> : null}
-                        {!isService && stopLine(job, 'dropoff') ? (
-                          <div className="job-tile-stop muted">{stopLine(job, 'dropoff')}</div>
-                        ) : null}
-                        {job.status !== 'open' ? (
-                          <div className="job-tile-status">{job.status}</div>
-                        ) : null}
-                      </button>
-                    ))
-                  )}
+                  <button type="button" className="btn fill-steel" onClick={() => openNew(uid || UNASSIGNED)}>{ICO.plus}Add</button>
                 </div>
+                <div className="progress"><i style={{ '--w': `${pct}%` }} /></div>
+                {colJobs.length === 0 ? (
+                  <div className="add-slot" style={{ padding: '28px 10px' }}>
+                    {uid ? 'Off shift today' : 'No unassigned jobs'}
+                    <br />
+                    <span style={{ fontSize: 11.5 }}>Add a job to this column</span>
+                  </div>
+                ) : colJobs.map((job, idx) => {
+                  const chip = boardChip(job, boardDate, today);
+                  const late = chip.id === 'alert' && !isDelivered(job.status);
+                  const pickup = stopLine(job, 'pickup');
+                  const drop = stopLine(job, 'dropoff');
+                  const [pName, pCity] = splitStop(pickup);
+                  const [dName, dCity] = splitStop(drop);
+                  const miles = Number(job.estimated_miles || 0);
+                  const lit = job.status === 'picked_up';
+                  return (
+                    <article
+                      key={job.id}
+                      className={`job metal${lit ? ' chrome-edge sheen is-lit' : ''}${isDelivered(job.status) ? ' done' : ''}${late ? ' late' : ''}`}
+                      onClick={() => startEdit(job)}
+                    >
+                      <div className="job-top">
+                        <span className="no fill-steel">{job.stop_order || idx + 1}</span>
+                        <span className="time">{formatJobTime(job.pickup_time || job.job_time) || '—'}</span>
+                        <span className={`status ${chip.id}`}>{chip.label}</span>
+                      </div>
+                      <div className="route">
+                        <i className="pin a" />
+                        <div><b>{pName || 'Pickup'}</b> {pCity ? <span>· {pCity}</span> : null}</div>
+                        {serviceStyle ? null : (
+                          <>
+                            <i className="pin b" />
+                            <div><b>{dName || 'Dropoff'}</b> {dCity ? <span>· {dCity}</span> : null}</div>
+                          </>
+                        )}
+                      </div>
+                      <div className="job-foot">
+                        <span><b className="num">{miles ? milesFmt.format(miles) : '—'}</b> mi est.</span>
+                        {skin.showCourierQuotes && miles ? <span className="money-t num">{moneyFmt.format(miles * (team.mileageRate || 0.725))}</span> : null}
+                        <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+                          {job.pod_photo_path ? ICO.camera : null}
+                          {job.pod_signature_path ? ICO.pod : null}
+                        </span>
+                      </div>
+                    </article>
+                  );
+                })}
+                {colJobs.length ? <div className="add-slot" onClick={() => openNew(uid || UNASSIGNED)}>+ Drop or add a job</div> : null}
               </section>
             );
           })}
         </div>
-      )}
+      ) : null}
 
-      {form ? (
-        <div className="drawer-root">
-          <button type="button" className="drawer-backdrop" aria-label="Close" onClick={closeDrawer} />
-          <aside className="drawer" role="dialog" aria-labelledby="job-drawer-title">
-            <div className="drawer-head">
-              <h2 id="job-drawer-title">{editingId ? `Job ${form.job_number || ''}` : 'New job'}</h2>
-              <button type="button" className="btn-ghost btn-sm" onClick={closeDrawer}>
-                Close
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="drawer-form">
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="job-number">Job #</label>
-                  <input id="job-number" value={form.job_number} onChange={(e) => setField('job_number', e.target.value)} required maxLength={40} />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="job-date">Date</label>
-                  <input id="job-date" type="date" value={form.job_date} onChange={(e) => setField('job_date', e.target.value)} required />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="job-time">Time</label>
-                  <input id="job-time" type="time" value={form.job_time} onChange={(e) => setField('job_time', e.target.value)} />
-                </div>
-              </div>
-              <div className="form-row address-assign-row">
-                <div className="form-group">
-                  <label htmlFor="job-driver">Driver</label>
-                  <select id="job-driver" value={form.assigned_user_id} onChange={(e) => setField('assigned_user_id', e.target.value)} required>
-                    <option value="">Select driver</option>
-                    {team.roster.map((m) => (
-                      <option key={m.user_id} value={m.user_id}>{driverLabel(m)}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label htmlFor="job-status">Status</label>
-                  <select id="job-status" value={form.status} onChange={(e) => setField('status', e.target.value)}>
-                    <option value="open">Open</option>
-                    <option value="done">Done</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </div>
-              </div>
-              <AddressFields
-                id="pickup"
-                title={isService ? 'Job site' : 'Pickup'}
-                name={form.pickup_name}
-                setName={(v) => setField('pickup_name', v)}
-                phone={form.pickup_phone}
-                setPhone={(v) => setField('pickup_phone', v)}
-                address={form.pickup}
-                setAddress={(v) => setField('pickup', v)}
-              />
-              {!isService ? (
-                <AddressFields
-                  id="dropoff"
-                  title="Delivery"
-                  name={form.dropoff_name}
-                  setName={(v) => setField('dropoff_name', v)}
-                  phone={form.dropoff_phone}
-                  setPhone={(v) => setField('dropoff_phone', v)}
-                  address={form.dropoff}
-                  setAddress={(v) => setField('dropoff', v)}
-                />
-              ) : null}
-              <div className="form-group">
-                <label htmlFor="job-details">Details</label>
-                <textarea id="job-details" rows={3} value={form.details} onChange={(e) => setField('details', e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label htmlFor="job-notes">Notes</label>
-                <textarea id="job-notes" rows={2} value={form.notes} onChange={(e) => setField('notes', e.target.value)} />
-              </div>
-              <div className="drawer-actions">
-                <button type="submit" className="btn btn-primary" disabled={busy}>
-                  {busy ? 'Saving…' : editingId ? 'Save job' : 'Create job'}
-                </button>
-                {editingId ? (
-                  <button type="button" className="btn-danger" onClick={handleDelete} disabled={busy}>
-                    Delete
-                  </button>
-                ) : null}
-              </div>
-            </form>
-          </aside>
+      {view === 'list' ? (
+        <section className="card metal" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+          {dayJobs.length === 0 ? (
+            <p className="empty">No {skin.boardNoun.toLowerCase()} for this day.</p>
+          ) : (
+            <JobDayList
+              jobs={dayJobs}
+              editingId={editingId}
+              onPick={startEdit}
+              driverName={driverName}
+              etas={etas}
+              officeClosesJobs={team.membership?.officeClosesJobs}
+              onMarkDelivered={handleMarkDelivered}
+              mode={team.membership?.operatingMode}
+              serviceStyle={serviceStyle}
+              showMoney={skin.showCourierQuotes}
+            />
+          )}
+        </section>
+      ) : null}
+
+      {view === 'map' ? (
+        <section className="card metal" style={{ flex: 1, minHeight: 0 }}>
+          <DispatchMap jobs={dayJobs} pings={showRoutes ? pingMarkers : []} showPings={showRoutes} expanded />
+        </section>
+      ) : null}
+
+      {formOpen ? (
+        <div className="desk-drawer-scrim" onClick={closeForm} role="presentation">
+          <div className="desk-drawer" onClick={(e) => e.stopPropagation()}>
+            {formEl}
+          </div>
         </div>
       ) : null}
     </div>
   );
+}
+
+function splitStop(line) {
+  const s = String(line || '');
+  const i = s.indexOf(' · ');
+  if (i < 0) return [s, ''];
+  return [s.slice(0, i), s.slice(i + 3)];
 }

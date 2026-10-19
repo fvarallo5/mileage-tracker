@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTeam } from '../../context/TeamContext.jsx';
+import { jobStyleForMode, orgModeLabel, payTypeForMode, normalizeOperatingMode } from '../../lib/company.js';
 import ThemeToggle from './ThemeToggle.jsx';
 
 function BrandHeader({ onSignOut, children }) {
@@ -21,23 +22,30 @@ function BrandHeader({ onSignOut, children }) {
 export function CreateTeam({ onSignOut, defaults = {} }) {
   const { createOrg, busy, error } = useTeam();
   const [name, setName] = useState('');
-  const jobStyle = defaults.job_style || 'service';
+  const operatingMode = normalizeOperatingMode(defaults.operating_mode);
+  const jobStyle = defaults.job_style || jobStyleForMode(operatingMode);
   const companyKind = defaults.company_kind || 'other';
-  const defaultPayType = defaults.default_pay_type || 'hourly';
+  const defaultPayType = defaults.default_pay_type || payTypeForMode(operatingMode);
 
   async function handleCreate(e) {
     e.preventDefault();
     try {
-      await createOrg(name.trim(), { jobStyle, companyKind, defaultPayType });
+      await createOrg(name.trim(), { jobStyle, companyKind, defaultPayType, operatingMode });
       setName('');
     } catch {
       /* error is on context */
     }
   }
 
-  const styleHint = jobStyle === 'delivery'
-    ? 'Jobs will use pickup and delivery addresses.'
-    : 'Jobs will use one site address (typical for HVAC, plumbing, and landscape).';
+  const styleHint = `${orgModeLabel(operatingMode)}. ${
+    operatingMode === 'reimbursement'
+      ? 'Employee miles, receipts, and tolls.'
+      : operatingMode === 'service'
+        ? 'One site per visit. Shop-to-site miles come from GPS.'
+        : operatingMode === 'driving_school'
+          ? 'Lessons, hours, and GPS miles.'
+          : 'Pickup and delivery jobs on Today.'
+  }`;
 
   return (
     <BrandHeader onSignOut={onSignOut}>

@@ -24,3 +24,9 @@ mobile/android/app/release/
 .idea/
 *.iml
 .vscode/
+
+# Local junk
+*.bak
+*.bak.png
+*.pre2.bak.png
+supabase/.temp/

@@ -1,33 +1,60 @@
 import { useState } from 'react';
-import { PAY_TYPES, payTypeLabel } from '../../lib/company.js';
+import { isReimbursementMode, normalizePayType, payTypeLabel } from '../../lib/company.js';
+import { contactLabel } from '../../lib/phone.js';
+import { canRemoveMember, roleLabel } from '../../lib/roles.js';
 import { inviteLink } from '../../orgApi.js';
 import { useTeam } from '../../context/TeamContext.jsx';
-import { roleLabel } from './format.js';
+import Accounts from './Accounts.jsx';
+import DriverSheet from './DriverSheet.jsx';
+import NewMemberSheet from './NewMemberSheet.jsx';
+import { isDriverActive, presenceLabel } from './format.js';
+import Module from './Module.jsx';
+import DeskTitle from './DeskTitle.jsx';
+
+function inviteName(inv) {
+  return [inv.first_name, inv.last_name].filter(Boolean).join(' ') || '—';
+}
 
 export default function People() {
   const team = useTeam();
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('driver');
   const [copied, setCopied] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const companyType = team.membership?.operatingMode;
+  const fleet = !isReimbursementMode(companyType);
+  const editing = team.drivers.find((d) => d.user_id === editingId) || null;
+  const canInvite = team.membership?.isAdmin;
 
-  async function handleInvite(e) {
-    e.preventDefault();
+  async function handleCreate(fields) {
     setCopied(null);
     team.setError(null);
-    try {
-      const token = await team.invite(email, role);
-      setEmail('');
-      await team.reload();
-      const link = inviteLink(token);
+    team.setNotice(null);
+    if (fields.password) {
       try {
-        await navigator.clipboard.writeText(link);
-      } catch {
-        /* show the link either way */
+        await team.createMember(fields);
+        await team.reload();
+        setCreating(false);
+        team.setNotice('Account is open. They sign in with that email or phone and the password you set.');
+        return;
+      } catch (err) {
+        if (err.message !== 'CREATE_MEMBER_MISSING') throw err;
       }
-      setCopied(link);
-    } catch (err) {
-      team.setError(err.message);
     }
+    const token = await team.invite(fields);
+    await team.reload();
+    const link = inviteLink(token);
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      /* show the link either way */
+    }
+    setCopied(link);
+    setCreating(false);
+    team.setNotice(
+      fields.password
+        ? 'Join link copied. Deploy create-member to open the password from this desk. They set a password when they join.'
+        : 'Join link copied. They sign in with that email or phone and join the team.',
+    );
   }
 
   async function handleRevoke(id) {
@@ -38,6 +65,7 @@ export default function People() {
   async function handleRemove(userId, label) {
     if (!confirm(`Remove ${label} from the team?`)) return;
     await team.removeMember(userId);
+    if (editingId === userId) setEditingId(null);
   }
 
   async function handleLeave() {
@@ -46,74 +74,28 @@ export default function People() {
   }
 
   return (
-    <div className="mgr-page">
+    <div className="desk-page">
+    <DeskTitle title="People" sub="Roster, invites, and pay." />
+    <div className="mgr-page people-page">
       <div className="page-toolbar">
-        <div>
-          <h1>People</h1>
-          <p className="page-sub">Invites, roles, and pay per person. Mileage stays on Overview.</p>
-        </div>
+        <h1>People</h1>
+        {canInvite ? (
+          <button type="button" className="btn btn-primary" id="new-member-btn" onClick={() => setCreating(true)}>
+            New member
+          </button>
+        ) : null}
       </div>
 
-      <section className="panel">
-        <h2>Job cards</h2>
-        <p className="field-hint">Service companies use one site. Couriers use pickup and delivery.</p>
-        <select
-          value={team.membership?.jobStyle || 'service'}
-          onChange={(e) => team.updateOrgStyle(e.target.value)}
-          disabled={team.busy}
-          aria-label="Job card style"
-        >
-          <option value="service">One site (HVAC, plumbing, landscape)</option>
-          <option value="delivery">Pickup and delivery</option>
-        </select>
-      </section>
-
-      <div className="grid-2">
-        <section className="panel">
-          <h2>Invite</h2>
-          <form onSubmit={handleInvite}>
-            <div className="form-group">
-              <label htmlFor="invite-email">Email</label>
-              <input
-                id="invite-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="driver@company.com"
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="invite-role">Role</label>
-              <select id="invite-role" value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="driver">Employee</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <button type="submit" className="btn btn-primary" disabled={team.busy}>
-              {team.busy ? 'Working…' : 'Create invite link'}
-            </button>
-          </form>
-          {copied ? (
-            <p className="invite-copied">
-              Link copied. They sign in with this email and join the team.
-              <br />
-              <code>{copied}</code>
-            </p>
-          ) : (
-            <p className="field-hint">Copy the link. There is no email blast yet.</p>
-          )}
-        </section>
-
-        <section className="panel">
-          <h2>Pending</h2>
+      <div className="people-layout">
+        <Module className="people-pending" title="Pending">
           {team.invites.length === 0 ? (
             <p className="empty">No invites waiting.</p>
           ) : (
             <table className="data-table compact">
               <thead>
                 <tr>
-                  <th>Email</th>
+                  <th>Name</th>
+                  <th>Contact</th>
                   <th>Role</th>
                   <th></th>
                 </tr>
@@ -121,8 +103,9 @@ export default function People() {
               <tbody>
                 {team.invites.map((inv) => (
                   <tr key={inv.id}>
-                    <td>{inv.email}</td>
-                    <td>{roleLabel(inv.role)}</td>
+                    <td>{inviteName(inv)}</td>
+                    <td>{contactLabel(inv.email, inv.phone)}</td>
+                    <td>{roleLabel(inv.role, { fleet, companyType })}</td>
                     <td className="num">
                       <button type="button" className="btn-danger" onClick={() => handleRevoke(inv.id)} disabled={team.busy}>
                         Revoke
@@ -133,110 +116,105 @@ export default function People() {
               </tbody>
             </table>
           )}
-        </section>
+          {copied ? (
+            <p className="invite-copied">
+              Join link copied.
+              <code>{copied}</code>
+            </p>
+          ) : null}
+        </Module>
+
+        {fleet ? <Accounts /> : (
+          <Module className="people-accounts" title="Accounts">
+            <p className="empty">Accounts live on the job desk.</p>
+          </Module>
+        )}
+
+        <Module className="people-members" title="Members" fill>
+          {team.drivers.length === 0 ? (
+            <p className="empty">Add a member. This card stays open so the roster is easy to scan.</p>
+          ) : null}
+          <div className="people-members-body">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Role</th>
+                  <th>Pay</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {team.drivers.map((row) => (
+                  <tr key={row.user_id}>
+                    <td>{row.driverNumber || '—'}</td>
+                    <td>
+                      <button type="button" className="linkish" onClick={() => setEditingId(row.user_id)}>
+                        {row.label}
+                      </button>
+                      {presenceLabel(row.lastSeenAt) ? (
+                        <div className={`presence-row${isDriverActive(row.lastSeenAt) ? ' on' : ''}`}>
+                          {presenceLabel(row.lastSeenAt)}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td>{row.email}</td>
+                    <td>{row.phone || '—'}</td>
+                    <td>{roleLabel(row.role, { fleet, companyType })}</td>
+                    <td>{payTypeLabel(normalizePayType(row.pay_type, companyType))}</td>
+                    <td className="num">
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditingId(row.user_id)} disabled={team.busy}>
+                        Open
+                      </button>
+                      {canRemoveMember(team.membership?.role, row.role) ? (
+                        <button
+                          type="button"
+                          className="btn-danger"
+                          onClick={() => handleRemove(row.user_id, row.label)}
+                          disabled={team.busy}
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {team.membership?.role !== 'owner' ? (
+            <div className="page-toolbar">
+              <button type="button" className="btn-danger" onClick={handleLeave} disabled={team.busy}>
+                Leave team
+              </button>
+            </div>
+          ) : null}
+        </Module>
       </div>
 
-      <section className="panel">
-        <h2>Members</h2>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Pay</th>
-              <th className="num">Hourly rate</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {team.drivers.map((row) => (
-              <MemberPayRow
-                key={row.user_id}
-                row={row}
-                busy={team.busy}
-                onSave={(payType, hourlyRate) =>
-                  team.updateMemberPay(row.user_id, payType, hourlyRate)
-                }
-                onRemove={
-                  row.role !== 'owner'
-                    ? () => handleRemove(row.user_id, row.label)
-                    : null
-                }
-              />
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      {team.membership?.role !== 'owner' ? (
-        <div className="page-toolbar">
-          <button type="button" className="btn-danger" onClick={handleLeave} disabled={team.busy}>
-            Leave team
-          </button>
-        </div>
+      {creating ? (
+        <NewMemberSheet
+          fleet={fleet}
+          companyType={companyType}
+          actorRole={team.membership?.role}
+          defaultPayType={team.membership?.defaultPayType}
+          busy={team.busy}
+          onClose={() => setCreating(false)}
+          onCreate={handleCreate}
+        />
+      ) : null}
+      {editing ? (
+        <DriverSheet
+          key={editing.user_id}
+          row={editing}
+          fleet={fleet}
+          onClose={() => setEditingId(null)}
+        />
       ) : null}
     </div>
-  );
-}
-
-function MemberPayRow({ row, busy, onSave, onRemove }) {
-  const pay = row.pay_type || 'hourly';
-  const [payType, setPayType] = useState(pay);
-  const [rate, setRate] = useState(
-    row.hourly_rate == null ? '' : String(row.hourly_rate),
-  );
-
-  const dirty =
-    payType !== pay ||
-    String(rate) !== (row.hourly_rate == null ? '' : String(row.hourly_rate));
-
-  return (
-    <tr>
-      <td>{row.label}</td>
-      <td>{row.email}</td>
-      <td>{roleLabel(row.role)}</td>
-      <td>
-        <select
-          value={payType}
-          onChange={(e) => setPayType(e.target.value)}
-          aria-label={`Pay type for ${row.label}`}
-        >
-          {PAY_TYPES.map((opt) => (
-            <option key={opt.id} value={opt.id}>{payTypeLabel(opt.id)}</option>
-          ))}
-        </select>
-      </td>
-      <td className="num">
-        {payType === 'hourly' ? (
-          <input
-            className="rate-input"
-            inputMode="decimal"
-            value={rate}
-            onChange={(e) => setRate(e.target.value)}
-            placeholder="0.00"
-            aria-label={`Hourly rate for ${row.label}`}
-          />
-        ) : (
-          <span className="muted-row">—</span>
-        )}
-      </td>
-      <td className="num">
-        {dirty ? (
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={busy}
-            onClick={() => onSave(payType, rate)}
-          >
-            Save
-          </button>
-        ) : onRemove ? (
-          <button type="button" className="btn-danger" onClick={onRemove} disabled={busy}>
-            Remove
-          </button>
-        ) : null}
-      </td>
-    </tr>
+    </div>
   );
 }

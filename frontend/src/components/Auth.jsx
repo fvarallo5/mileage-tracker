@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { loginKind, looksLikeEmail } from '../lib/phone.js';
 import { inviteTokenFromUrl } from '../orgApi';
 
 export default function Auth({
@@ -50,8 +51,8 @@ export default function Auth({
     }
 
     if (showForgot) {
-      if (!email.includes('@')) {
-        setError('Enter a valid email address.');
+      if (!looksLikeEmail(email)) {
+        setError('Password reset uses email. Enter the account email.');
         return;
       }
       setBusy(true);
@@ -68,19 +69,30 @@ export default function Auth({
       return;
     }
 
-    if (!email.includes('@')) {
-      setError('Enter a valid email address.');
+    if (!loginKind(email)) {
+      setError('Enter an email or a phone number.');
       return;
     }
     if (password.length < 6) {
       setError('Password must be at least 6 characters.');
       return;
     }
+    if (mode === 'signup' && password !== password2) {
+      setError('Passwords do not match.');
+      return;
+    }
 
     setBusy(true);
     try {
       if (mode === 'signup') {
-        await onSignUp(email.trim(), password);
+        const result = await onSignUp(email.trim(), password);
+        if (result === 'confirm') {
+          setNotice(
+            loginKind(email) === 'phone'
+              ? 'Account created. If TrekTrack asks for a text code, enter it, then continue.'
+              : 'Account created. Open the confirmation email on this computer. You will land on the setup questions.',
+          );
+        }
       } else {
         await onSignIn(email.trim(), password);
       }
@@ -106,13 +118,13 @@ export default function Auth({
   let subtitle = 'Audit-ready mileage. Built for the road.';
   if (hasInvite && !showUpdate && !showForgot) {
     subtitle =
-      'Sign in with the invited email to join the team. Use the same account as the phone app.';
+      'Sign in with the invited email or phone to join the team. Use the same account as the phone app.';
   } else if (showUpdate) {
     subtitle = 'Choose a new password for TrekTrack. This also unlocks the phone app.';
   } else if (showForgot) {
     subtitle = 'We’ll email a reset link. Open it on this computer, not the phone.';
   } else if (mode === 'signup') {
-    subtitle = 'Create an account to sync audit-ready mileage across devices.';
+    subtitle = 'Choose a password, then confirm the email. Setup questions come after that.';
   }
 
   return (
@@ -147,12 +159,12 @@ export default function Auth({
         <form onSubmit={handleSubmit} className="auth-form">
           {!showUpdate && (
             <label>
-              Email
+              Email or phone
               <input
-                type="email"
+                type={looksLikeEmail(email) ? 'email' : 'tel'}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
+                autoComplete="username"
                 required
               />
             </label>
@@ -170,7 +182,7 @@ export default function Auth({
               />
             </label>
           )}
-          {showUpdate && (
+          {(showUpdate || mode === 'signup') && !showForgot && (
             <label>
               Confirm password
               <input

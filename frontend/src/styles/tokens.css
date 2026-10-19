@@ -1,0 +1,146 @@
+/* ==========================================================================
+   TrekTrack design tokens — "Polished Navy" (dark, PRIMARY) + "Titanium" (light)
+   Brand source of truth (exact hexes from the user):
+     base #0a0e14 · blue #3b9eff · green #34d399 · amber #fbbf24 · red #f87171
+   Metallic navy surfaces = lighter steel-navy steps derived from #0a0e14 in
+   OKLCH (same hue 258°, rising L/C). Framework-agnostic.
+   Theme switch: <html data-theme="dark|light"> (no attribute → follows OS).
+   Semantic colors use light-dark(LIGHT, DARK): one token set, two themes.
+   WCAG ratios in comments (full table in DESIGN_GUIDE_FOR_AI.md §2).
+   ========================================================================== */
+
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light dark;
+
+  /* ---------- Brand (exact) ---------------------------------------------- */
+  --brand-base:  #0a0e14;  /* oklch(16.2% 0.014 258.4) */
+  --brand-blue:  #3b9eff;  /* oklch(68.8% 0.169 251.4) primary / interactive / chrome tint */
+  --brand-green: #34d399;  /* oklch(77.3% 0.153 163.2) business miles / success / positive */
+  --brand-amber: #fbbf24;  /* oklch(83.7% 0.164 84.4)  deductions / costs / warnings */
+  --brand-red:   #f87171;  /* oklch(71.1% 0.166 22.2)  errors / unclassified / alerts */
+
+  /* ---------- Steel-navy ramp derived from #0a0e14 (hue 258) ------------- */
+  --navy-0:   var(--brand-base);           /* #0a0e14 app bg                       */
+  --navy-1:   oklch(18.5% 0.020 258);      /* #0d131c rail / sunken / wells        */
+  --navy-2:   oklch(21.5% 0.026 258);      /* #121a25 card surface                 */
+  --navy-3:   oklch(25.5% 0.032 258);      /* #192332 raised / hover / table head  */
+  --navy-4:   oklch(30.0% 0.038 258);      /* #222e41 metal mid-tone               */
+  --navy-5:   oklch(40.0% 0.050 258);      /* #374863 metal highlight stop         */
+  --chrome:   oklch(86.0% 0.030 258);      /* #c5d2e5 chrome edge highlight        */
+  --chrome-blue: color-mix(in oklab, var(--brand-blue) 55%, var(--chrome)); /* blue-tinted chrome */
+
+  /* ---------- Titanium ramp (light variant) ------------------------------ */
+  --ti-0: #dde2e9;  /* oklch(91.3% 0.011 258) app bg      */
+  --ti-1: #e8ecf1;  /* oklch(94.0% 0.008 258) rail/sunken */
+  --ti-2: #f5f7fa;  /* oklch(97.6% 0.004 258) card        */
+  --ti-3: #ffffff;  /*                         raised     */
+
+  /* Darker, text-safe accent shades for LIGHT surfaces (brand hexes fail as
+     text on titanium: blue 2.6, green 1.8, amber 1.6, red 2.6 → fills only). */
+  --blue-text-l:  #0b5cad;  /* 6.2:1 on #f5f7fa · 5.6 on #e8ecf1 */
+  --green-text-l: #05734f;  /* 5.5:1 on #f5f7fa · 5.0 on #e8ecf1 */
+  --amber-text-l: #8a5a00;  /* 5.5:1 on #f5f7fa · 5.0 on #e8ecf1 */
+  --red-text-l:   #b91c1c;  /* 6.0:1 on #f5f7fa · 5.5 on #e8ecf1 */
+
+  /* ---------- Semantic surfaces & text ----------------------------------- */
+  --bg:             light-dark(var(--ti-0), var(--navy-0));
+  --bg-rail:        light-dark(var(--ti-1), var(--navy-1));
+  --surface:        light-dark(var(--ti-2), var(--navy-2));
+  --surface-2:      light-dark(var(--ti-3), var(--navy-3));
+  --surface-sunken: light-dark(var(--ti-1), var(--navy-1));
+
+  --text:        light-dark(#0a0e14, #eef3fb); /* 18.0 on ti-2 · 15.7 on navy-2 */
+  --text-muted:  light-dark(#3d4a5e, #a3b1c6); /*  8.4 on ti-2 ·  8.1 on navy-2 */
+  --text-subtle: light-dark(#556275, #8593aa); /*  5.8 on ti-2 ·  5.6 on navy-2 (≥4.5 AA) */
+
+  /* ---------- Semantic accents: TEXT-safe vs FILL ------------------------ */
+  /* Dark: the exact brand hex is text-safe on every navy step (≥5.6:1).    */
+  --primary:      light-dark(var(--blue-text-l),  var(--brand-blue));   /* 6.3 on navy-2 */
+  --positive:     light-dark(var(--green-text-l), var(--brand-green));  /* 9.1 on navy-2 */
+  --money:        light-dark(var(--amber-text-l), var(--brand-amber));  /* 10.5 on navy-2 */
+  --alert:        light-dark(var(--red-text-l),   var(--brand-red));    /* 6.3 on navy-2 */
+  /* Fills always use the exact brand hex; ink on fills is ALWAYS #0a0e14
+     (blue 6.9 · green 10.1 · amber 11.6 · red 7.0). NEVER white on blue (2.8). */
+  --on-fill: var(--brand-base);
+  --tint-primary:  color-mix(in oklab, var(--brand-blue)  16%, transparent);
+  --tint-positive: color-mix(in oklab, var(--brand-green) 16%, transparent);
+  --tint-money:    color-mix(in oklab, var(--brand-amber) 16%, transparent);
+  --tint-alert:    color-mix(in oklab, var(--brand-red)   16%, transparent);
+
+  --line:        light-dark(oklch(16% 0.014 258 / 0.12), oklch(100% 0 0 / 0.075));
+  --line-strong: light-dark(oklch(16% 0.014 258 / 0.22), oklch(100% 0 0 / 0.14));
+  --focus-ring:  light-dark(var(--blue-text-l), var(--brand-blue));
+
+  /* ---------- Metal stops (consumed by metallic.css) --------------------- */
+  --metal-hi:  light-dark(#ffffff,  var(--navy-5));
+  --metal-mid: light-dark(var(--ti-1), var(--navy-3));
+  --metal-lo:  light-dark(#c3cad6,  var(--navy-1));
+  --edge-hi:   light-dark(oklch(100% 0 0 / 0.95), oklch(100% 0 0 / 0.14));
+  --edge-lo:   light-dark(oklch(16% 0.014 258 / 0.16), oklch(0% 0 0 / 0.6));
+  --chrome-1:  light-dark(#ffffff, var(--chrome));
+  --chrome-2:  light-dark(#a9b3c2, var(--navy-4));
+  --chrome-3:  light-dark(color-mix(in oklab, var(--brand-blue) 40%, #ffffff), var(--chrome-blue));
+  --fx-sheen:  light-dark(oklch(100% 0 0 / 0.55), oklch(100% 0 0 / 0.11));
+  --fx-well:   light-dark(oklch(0% 0 0 / 0.10), oklch(0% 0 0 / 0.5));
+  --fx-grain:  0.07;  /* number → overridden per theme below (light-dark is color-only) */
+  --shadow-col: light-dark(oklch(30% 0.04 258 / 0.20), oklch(0% 0 0 / 0.6));
+
+  /* ---------- Data-viz ---------------------------------------------------- */
+  --viz-1: var(--brand-green);  /* business miles */
+  --viz-2: var(--brand-blue);   /* trips / personal comparison */
+  --viz-3: var(--brand-amber);  /* $ */
+  --viz-4: var(--brand-red);    /* unclassified */
+  --viz-tolls: var(--brand-amber); --viz-gas: var(--brand-blue);
+  --viz-parking: var(--brand-green); --viz-misc: #a3b1c6;
+
+  /* ---------- Type -------------------------------------------------------- */
+  --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --fs-xs: 0.6875rem;  /* 11 overline / table head, uppercase +0.08em */
+  --fs-sm: 0.8125rem;  /* 13 table cells, secondary */
+  --fs-md: 0.875rem;   /* 14 body */
+  --fs-lg: 1rem;       /* 16 card titles */
+  --fs-xl: 1.625rem;   /* 26 page title, 600, -0.02em */
+  --fs-kpi: 1.875rem;  /* 30 KPI values, 600, -0.025em, tabular */
+
+  /* ---------- Space / radius / layout / motion ---------------------------- */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
+  --rail-w: 260px; --rail-w-collapsed: 72px;
+  --gutter: 20px; --page-pad: 28px;
+  --ease: cubic-bezier(.2,.7,.2,1);
+  --dur-fast: 140ms; --dur: 240ms; --dur-sheen: 900ms;
+  --elev-1: 0 1px 2px var(--shadow-col), 0 10px 28px -16px var(--shadow-col);
+  --elev-2: 0 2px 6px var(--shadow-col), 0 24px 48px -20px var(--shadow-col);
+}
+
+:root[data-theme="dark"]  { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; --fx-grain: 0.12; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) { --fx-grain: 0.12; } }
+
+@media (prefers-contrast: more) {
+  :root {
+    --text-muted:  light-dark(#0a0e14, #dbe3ef);
+    --text-subtle: light-dark(#3d4a5e, #a3b1c6);
+    --line: light-dark(oklch(16% 0.014 258 / 0.4), oklch(100% 0 0 / 0.3));
+    --fx-grain: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur: 0ms; --dur-sheen: 0ms; }
+}

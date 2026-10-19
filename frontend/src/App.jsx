@@ -2,15 +2,18 @@ import { useState } from 'react';
 import { useAuth } from './auth';
 import Auth from './components/Auth';
 import { CreateTeam, DriverHome } from './components/manager/Gate';
-import CompanySetup from './components/manager/CompanySetup';
+import { ProfileSetup } from './components/manager/Profile';
 import ThemeToggle from './components/manager/ThemeToggle';
 import Shell from './components/manager/Shell';
 import { TeamProvider, useTeam } from './context/TeamContext';
 import { inviteTokenFromUrl } from './orgApi';
+import TrackPage from './components/TrackPage';
+import { trackTokenFromUrl } from './lib/tracking';
 
 function Workspace({ onSignOut, user }) {
-  const { loading, membership } = useTeam();
+  const { loading, membership, ownProfile } = useTeam();
   const [setup, setSetup] = useState(null);
+  const [profileOk, setProfileOk] = useState(false);
 
   if (loading) {
     return (
@@ -22,13 +25,16 @@ function Workspace({ onSignOut, user }) {
 
   const meta = { ...(user?.user_metadata || {}), ...(setup || {}) };
   const joining = Boolean(inviteTokenFromUrl());
+  const hasMode = Boolean(meta.operating_mode || meta.company_kind);
 
-  if (!membership && !joining && !meta.company_kind) {
+  if (!membership && !joining && !hasMode) {
     return (
-      <CompanySetup
+      <ProfileSetup
         onSignOut={onSignOut}
+        includeMode
         onDone={(answers) =>
           setSetup({
+            operating_mode: answers.operatingMode,
             company_kind: answers.companyKind,
             job_style: answers.jobStyle,
             default_pay_type: answers.defaultPayType,
@@ -39,11 +45,21 @@ function Workspace({ onSignOut, user }) {
   }
 
   if (!membership) return <CreateTeam onSignOut={onSignOut} defaults={meta} />;
-  if (!membership.isManager) return <DriverHome onSignOut={onSignOut} />;
+  if (!membership.isDesk) return <DriverHome onSignOut={onSignOut} />;
+  const hasName = Boolean((ownProfile?.nickname || '').trim()) || profileOk;
+  if (!hasName) {
+    return <ProfileSetup onSignOut={onSignOut} onDone={() => setProfileOk(true)} />;
+  }
   return <Shell onSignOut={onSignOut} />;
 }
 
 export default function App() {
+  const trackToken = trackTokenFromUrl();
+  if (trackToken) return <TrackPage token={trackToken} />;
+  return <Desk />;
+}
+
+function Desk() {
   const auth = useAuth();
 
   if (auth.loading) {

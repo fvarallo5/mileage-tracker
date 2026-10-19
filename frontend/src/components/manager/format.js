@@ -32,11 +32,52 @@ export function costLabel(category) {
   }
 }
 
-export function roleLabel(role) {
-  if (role === 'owner') return 'Owner';
-  if (role === 'admin') return 'Admin';
-  return 'Employee';
+const ACTIVE_MS = 2 * 60 * 1000;
+
+export function isDriverActive(lastSeenAt, now = Date.now()) {
+  if (!lastSeenAt) return false;
+  const t = new Date(lastSeenAt).getTime();
+  return Number.isFinite(t) && now - t < ACTIVE_MS;
 }
+
+export function presenceLabel(lastSeenAt, now = Date.now()) {
+  if (!lastSeenAt) return '';
+  if (isDriverActive(lastSeenAt, now)) return 'Active';
+  const t = new Date(lastSeenAt).getTime();
+  if (!Number.isFinite(t)) return '';
+  const mins = Math.round((now - t) / 60000);
+  if (mins < 60) return `Seen ${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `Seen ${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `Seen ${days}d ago`;
+}
+
+export function splitName(nickname) {
+  const s = String(nickname || '').trim();
+  if (!s) return { first: '', last: '' };
+  const i = s.indexOf(' ');
+  if (i < 0) return { first: s, last: '' };
+  return { first: s.slice(0, i), last: s.slice(i + 1).trim() };
+}
+
+export function fullName(profile, fallback = '') {
+  const first = String(profile?.first_name || '').trim();
+  const last = String(profile?.last_name || '').trim();
+  const joined = [first, last].filter(Boolean).join(' ');
+  if (joined) return joined;
+  const nick = String(profile?.nickname || fallback || '').trim();
+  return nick || 'Driver';
+}
+
+export function driverHeadline(driverNumber, name, openCount) {
+  const jobs = `${openCount} open`;
+  const num = String(driverNumber || '').trim();
+  const label = name || 'Driver';
+  return num ? `${num} - ${label} - ${jobs}` : `${label} - ${jobs}`;
+}
+
+export { roleLabel } from '../../lib/roles.js';
 
 export function formatShortDate(iso) {
   if (!iso) return '—';

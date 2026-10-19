@@ -5,6 +5,21 @@ export function isoDate(d) {
   return `${y}-${m}-${day}`;
 }
 
+export function formatMdY(iso) {
+  const raw = String(iso || '').slice(0, 10);
+  const d = new Date(`${raw}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return String(iso || '');
+  const mon = d.toLocaleString('en-US', { month: 'short' });
+  return `${mon} ${d.getDate()} ${d.getFullYear()}`;
+}
+
+export function formatRangeMdY(start, end) {
+  const from = formatMdY(start);
+  const to = formatMdY(end);
+  if (!start || from === to) return from;
+  return `${from} to ${to}`;
+}
+
 export function periodRange(key, now = new Date()) {
   const end = isoDate(now);
   if (key === 'day') {
@@ -29,6 +44,24 @@ export function periodRange(key, now = new Date()) {
     start: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`,
     end,
     label: 'This month',
+  };
+}
+
+export function weekContaining(iso, now = new Date()) {
+  const day = iso
+    ? new Date(`${String(iso).slice(0, 10)}T12:00:00`)
+    : now;
+  const basis = Number.isNaN(day.getTime()) ? now : day;
+  const weekday = (basis.getDay() + 6) % 7;
+  const start = new Date(basis);
+  start.setDate(basis.getDate() - weekday);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return {
+    key: 'week',
+    start: isoDate(start),
+    end: isoDate(end),
+    label: 'This week',
   };
 }
 
